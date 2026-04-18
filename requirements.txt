@@ -1,0 +1,4 @@
+# Dev / test / BDD; portalocker for on-disk file locking in Storage
+pytest>=8.0
+pytest-bdd>=7.0
+portalocker>=2.0
