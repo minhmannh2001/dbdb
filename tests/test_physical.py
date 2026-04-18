@@ -50,3 +50,30 @@ def test_init_ensures_superblock_on_empty_file():
     finally:
         f.close()
         os.unlink(f.name)
+
+
+def test_write_appends_big_endian_length_then_payload():
+    """After superblock, each record is uint64_be length + bytes (reference layout)."""
+    buf = io.BytesIO()
+    storage = Storage(buf)
+    addr = storage.write(b"ABCDE")
+    assert addr == Storage.SUPERBLOCK_SIZE
+    raw = buf.getvalue()
+    _, data_region = raw[: Storage.SUPERBLOCK_SIZE], raw[Storage.SUPERBLOCK_SIZE :]
+    assert data_region == struct.pack(Storage.INTEGER_FORMAT, 5) + b"ABCDE"
+
+
+def test_write_sequential_records_chain_offsets():
+    buf = io.BytesIO()
+    storage = Storage(buf)
+    a1 = storage.write(b"A")
+    a2 = storage.write(b"BB")
+    assert a1 == Storage.SUPERBLOCK_SIZE
+    assert a2 == Storage.SUPERBLOCK_SIZE + Storage.INTEGER_LENGTH + 1
+    tail = buf.getvalue()[Storage.SUPERBLOCK_SIZE :]
+    assert tail == (
+        struct.pack(Storage.INTEGER_FORMAT, 1)
+        + b"A"
+        + struct.pack(Storage.INTEGER_FORMAT, 2)
+        + b"BB"
+    )

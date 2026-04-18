@@ -1,6 +1,7 @@
 """Append-only file storage (physical layer). Built incrementally per roadmap."""
 
 import os
+import struct
 
 
 class Storage:
@@ -25,3 +26,10 @@ class Storage:
 
     def _seek_superblock(self):
         self._f.seek(0)
+
+    def write(self, data: bytes) -> int:
+        self._seek_end()
+        object_address = self._f.tell()
+        self._f.write(struct.pack(self.INTEGER_FORMAT, len(data)))
+        self._f.write(data)
+        return object_address
