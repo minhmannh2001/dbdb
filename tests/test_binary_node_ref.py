@@ -1,9 +1,12 @@
 """Tests for BinaryNode / BinaryNodeRef (Phase 3)."""
 
 import io
+import pickle
 from dataclasses import dataclass
 
-from dbdb.binary_tree import BinaryNode
+import pytest
+
+from dbdb.binary_tree import BinaryNode, BinaryNodeRef
 from dbdb.logical import ValueRef
 from dbdb.physical import Storage
 
@@ -99,3 +102,133 @@ def test_binary_node_leaf_store_refs_persists_all_three_refs():
     assert value.address != 0
     assert left.address != 0
     assert right.address != 0
+
+
+def test_binary_node_ref_prepare_to_store_persists_leaf_value_and_children():
+    """Root ref's hook runs `store_refs` so value/child refs have addresses before root bytes."""
+    buf = io.BytesIO()
+    storage = Storage(buf)
+    left = ValueRef("")
+    right = ValueRef("")
+    value = ValueRef("leaf")
+    node = BinaryNode(left_ref=left, key="k", value_ref=value, right_ref=right, length=1)
+    root = BinaryNodeRef(referent=node)
+    root.prepare_to_store(storage)
+    assert value.address != 0
+    assert left.address != 0
+    assert right.address != 0
+
+
+def test_binary_node_ref_prepare_to_store_no_referent_is_safe():
+    BinaryNodeRef().prepare_to_store(Storage(io.BytesIO()))
+
+
+def test_binary_node_ref_referent_to_bytes_pickles_address_dict():
+    """Pickled payload is a dict with left, key, value, right, length (addresses only for refs)."""
+    left = BinaryNodeRef(address=11)
+    right = BinaryNodeRef(address=22)
+    value = ValueRef(address=33)
+    node = BinaryNode(left_ref=left, key="k", value_ref=value, right_ref=right, length=7)
+    raw = BinaryNodeRef.referent_to_bytes(node)
+    d = pickle.loads(raw)
+    assert set(d) == {"left", "key", "value", "right", "length"}
+    assert d["left"] == 11
+    assert d["key"] == "k"
+    assert d["value"] == 33
+    assert d["right"] == 22
+    assert d["length"] == 7
+
+
+def test_binary_node_ref_length_delegates_to_loaded_referent():
+    node = BinaryNode(BinaryNodeRef(), "k", ValueRef("v"), BinaryNodeRef(), 42)
+    ref = BinaryNodeRef(referent=node)
+    assert ref.length == 42
+
+
+def test_binary_node_ref_length_empty_ref_is_zero():
+    assert BinaryNodeRef().length == 0
+    assert BinaryNodeRef(referent=None, address=0).length == 0
+
+
+def test_binary_node_ref_length_unloaded_with_address_raises():
+    with pytest.raises(RuntimeError, match="unloaded node"):
+        BinaryNodeRef(address=4096).length
+
+
+def test_binary_node_ref_bytes_to_referent_inverts_pickled_dict():
+    raw = BinaryNodeRef.referent_to_bytes(
+        BinaryNode(
+            BinaryNodeRef(address=5),
+            "x",
+            ValueRef(address=6),
+            BinaryNodeRef(address=7),
+            2,
+        )
+    )
+    node = BinaryNodeRef.bytes_to_referent(raw)
+    assert node.key == "x" and node.length == 2
+    assert isinstance(node.left_ref, BinaryNodeRef) and node.left_ref.address == 5
+    assert isinstance(node.right_ref, BinaryNodeRef) and node.right_ref.address == 7
+    assert isinstance(node.value_ref, ValueRef) and node.value_ref.address == 6
+
+
+def test_binary_node_ref_roundtrip_store_then_get_matches_chapter_leaf_shape():
+    """RAM leaf with `BinaryNodeRef` children → store → address-only ref → `get` rebuilds node."""
+    buf = io.BytesIO()
+    storage = Storage(buf)
+    node = BinaryNode(
+        BinaryNodeRef(),
+        "k",
+        ValueRef("payload"),
+        BinaryNodeRef(),
+        1,
+    )
+    root = BinaryNodeRef(referent=node)
+    root.store(storage)
+    addr = root.address
+    loaded = BinaryNodeRef(address=addr).get(storage)
+    assert loaded.key == "k"
+    assert loaded.length == 1
+    assert loaded.value_ref.get(storage) == "payload"
+    assert isinstance(loaded.left_ref, BinaryNodeRef)
+    assert isinstance(loaded.right_ref, BinaryNodeRef)
+    assert loaded.left_ref.address == 0
+    assert loaded.right_ref.address == 0
+
+
+def test_binary_node_ref_store_nested_persists_pickled_nodes():
+    """Nested `store` writes inner node bytes first, then outer root; blobs unpickle to address dicts."""
+    buf = io.BytesIO()
+    storage = Storage(buf)
+    inner = BinaryNode(
+        ValueRef("L"),
+        "inner",
+        ValueRef("mid"),
+        ValueRef("R"),
+        length=1,
+    )
+    inner_wrapped = BinaryNodeRef(referent=inner)
+    outer = BinaryNode(
+        inner_wrapped,
+        "root",
+        ValueRef("rootv"),
+        ValueRef(""),
+        length=1,
+    )
+    root = BinaryNodeRef(referent=outer)
+    root.store(storage)
+
+    assert root.address != 0
+    outer_doc = pickle.loads(storage.read(root.address))
+    assert outer_doc["key"] == "root"
+    assert outer_doc["length"] == 1
+    assert outer_doc["left"] == inner_wrapped.address
+    assert outer_doc["value"] != 0
+    assert outer_doc["right"] != 0
+
+    assert inner_wrapped.address != 0
+    inner_doc = pickle.loads(storage.read(inner_wrapped.address))
+    assert inner_doc["key"] == "inner"
+    assert set(inner_doc) == {"left", "key", "value", "right", "length"}
+    assert inner_doc["length"] == 1
+    assert all(inner_doc[k] != 0 for k in ("left", "value", "right"))

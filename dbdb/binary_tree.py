@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import pickle
 from dataclasses import dataclass
 from typing import Any
+
+from dbdb.logical import ValueRef
 
 
 @dataclass
@@ -37,3 +40,44 @@ class BinaryNode:
         self.value_ref.store(storage)
         self.left_ref.store(storage)
         self.right_ref.store(storage)
+
+
+class BinaryNodeRef(ValueRef):
+    """Pointer to a `BinaryNode`; ensures nested refs hit disk before this ref is encoded."""
+
+    @property
+    def length(self) -> int:
+        """Subtree size from loaded referent; unloaded ref with a disk address is undefined."""
+        if self._referent is None and self._address:
+            raise RuntimeError("Asking for BinaryNodeRef length of unloaded node")
+        if self._referent:
+            return self._referent.length
+        return 0
+
+    def prepare_to_store(self, storage) -> None:
+        if self._referent:
+            self._referent.store_refs(storage)
+
+    @staticmethod
+    def referent_to_bytes(referent: BinaryNode) -> bytes:
+        """Pickle a small dict of addresses and metadata (no nested Python objects)."""
+        return pickle.dumps(
+            {
+                "left": referent.left_ref.address,
+                "key": referent.key,
+                "value": referent.value_ref.address,
+                "right": referent.right_ref.address,
+                "length": referent.length,
+            }
+        )
+
+    @staticmethod
+    def bytes_to_referent(data: bytes) -> BinaryNode:
+        d = pickle.loads(data)
+        return BinaryNode(
+            BinaryNodeRef(address=d["left"]),
+            d["key"],
+            ValueRef(address=d["value"]),
+            BinaryNodeRef(address=d["right"]),
+            d["length"],
+        )
