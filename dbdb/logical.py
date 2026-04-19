@@ -12,6 +12,11 @@ class ValueRef:
     def address(self):
         return self._address
 
+    @property
+    def length(self):
+        """Used as child ref in `BinaryNode.from_node`; plain values are not subtrees."""
+        return 0
+
     def prepare_to_store(self, storage):
         """Hook before persisting; subclasses may validate or mutate state."""
         pass
