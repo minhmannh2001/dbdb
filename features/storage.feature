@@ -6,3 +6,9 @@ Feature: Physical storage
     Given a binary in-memory file
     When we construct Storage with that file
     Then the storage exposes the same file handle
+
+  Scenario: Appended payload roundtrips through read at its address
+    Given empty storage over a binary memory buffer
+    When we append a known byte payload through write
+    And we read the blob at that write address
+    Then the read bytes equal the appended payload

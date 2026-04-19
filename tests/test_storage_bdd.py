@@ -6,3 +6,8 @@ from pytest_bdd import scenario
 @scenario("storage.feature", "Storage wraps a file-like object")
 def test_storage_wraps_file_like_bdd():
     pass
+
+
+@scenario("storage.feature", "Appended payload roundtrips through read at its address")
+def test_storage_write_read_roundtrip_bdd():
+    pass
