@@ -30,3 +30,27 @@ class ValueRef:
         if self._referent is None and self._address:
             self._referent = self.bytes_to_referent(storage.read(self._address))
         return self._referent
+
+    def store(self, storage):
+        if self._referent is not None and not self._address:
+            self.prepare_to_store(storage)
+            self._address = storage.write(self.referent_to_bytes(self._referent))
+
+
+class BytesValueRef(ValueRef):
+    """Value reference for raw binary payloads (no UTF-8 text encoding)."""
+
+    def __init__(self, referent=None, address=0):
+        if referent is not None and not isinstance(referent, (bytes, bytearray)):
+            raise TypeError("BytesValueRef referent must be bytes, bytearray, or None")
+        normalized = None if referent is None else bytes(referent)
+        super().__init__(referent=normalized, address=address)
+
+    @staticmethod
+    def referent_to_bytes(referent):
+        return bytes(referent)
+
+    @staticmethod
+    def bytes_to_referent(data):
+        return bytes(data)
+
