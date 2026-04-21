@@ -85,3 +85,11 @@ class LogicalBase:
     def _delete(self, node, key):
         raise NotImplementedError()
 
+    def __len__(self):
+        if not self._storage.locked:
+            self._refresh_tree_ref()
+        root = self._follow(self._tree_ref)
+        if root:
+            return root.length
+        return 0
+

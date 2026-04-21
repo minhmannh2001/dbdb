@@ -88,3 +88,75 @@ class BinaryTree(LogicalBase):
 
     node_ref_class = BinaryNodeRef
     value_ref_class = ValueRef
+
+    def _get(self, node, key):
+        while node is not None:
+            if key < node.key:
+                node = self._follow(node.left_ref)
+            elif node.key < key:
+                node = self._follow(node.right_ref)
+            else:
+                return self._follow(node.value_ref)
+        raise KeyError
+
+    def _insert(self, node, key, value_ref):
+        if node is None:
+            new_node = BinaryNode(
+                self.node_ref_class(),
+                key,
+                value_ref,
+                self.node_ref_class(),
+                1,
+            )
+        elif key < node.key:
+            new_node = BinaryNode.from_node(
+                node,
+                left_ref=self._insert(self._follow(node.left_ref), key, value_ref),
+            )
+        elif node.key < key:
+            new_node = BinaryNode.from_node(
+                node,
+                right_ref=self._insert(self._follow(node.right_ref), key, value_ref),
+            )
+        else:
+            new_node = BinaryNode.from_node(node, value_ref=value_ref)
+        return self.node_ref_class(referent=new_node)
+
+    def _delete(self, node, key):
+        if node is None:
+            raise KeyError
+        elif key < node.key:
+            new_node = BinaryNode.from_node(
+                node,
+                left_ref=self._delete(self._follow(node.left_ref), key),
+            )
+        elif node.key < key:
+            new_node = BinaryNode.from_node(
+                node,
+                right_ref=self._delete(self._follow(node.right_ref), key),
+            )
+        else:
+            left = self._follow(node.left_ref)
+            right = self._follow(node.right_ref)
+            if left and right:
+                replacement = self._find_max(left)
+                left_ref = self._delete(self._follow(node.left_ref), replacement.key)
+                new_node = BinaryNode(
+                    left_ref,
+                    replacement.key,
+                    replacement.value_ref,
+                    node.right_ref,
+                    left_ref.length + node.right_ref.length + 1,
+                )
+            elif left:
+                return node.left_ref
+            else:
+                return node.right_ref
+        return self.node_ref_class(referent=new_node)
+
+    def _find_max(self, node):
+        while True:
+            next_node = self._follow(node.right_ref)
+            if next_node is None:
+                return node
+            node = next_node
