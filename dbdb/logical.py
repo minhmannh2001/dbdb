@@ -59,3 +59,29 @@ class BytesValueRef(ValueRef):
     def bytes_to_referent(data):
         return bytes(data)
 
+
+class LogicalBase:
+    """Minimal base for tree operations; concrete trees provide algorithm hooks."""
+
+    node_ref_class = None
+    value_ref_class = ValueRef
+
+    def __init__(self, storage):
+        self._storage = storage
+        self._refresh_tree_ref()
+
+    def _refresh_tree_ref(self):
+        self._tree_ref = self.node_ref_class(address=self._storage.get_root_address())
+
+    def _follow(self, ref):
+        return ref.get(self._storage)
+
+    def _get(self, node, key):
+        raise NotImplementedError()
+
+    def _insert(self, node, key, value_ref):
+        raise NotImplementedError()
+
+    def _delete(self, node, key):
+        raise NotImplementedError()
+

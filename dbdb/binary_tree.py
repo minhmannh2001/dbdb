@@ -6,7 +6,7 @@ import pickle
 from dataclasses import dataclass
 from typing import Any
 
-from dbdb.logical import ValueRef
+from dbdb.logical import LogicalBase, ValueRef
 
 
 @dataclass
@@ -81,3 +81,10 @@ class BinaryNodeRef(ValueRef):
             BinaryNodeRef(address=d["right"]),
             d["length"],
         )
+
+
+class BinaryTree(LogicalBase):
+    """Tree shell wired to logical base; traversal/mutation hooks come next."""
+
+    node_ref_class = BinaryNodeRef
+    value_ref_class = ValueRef
