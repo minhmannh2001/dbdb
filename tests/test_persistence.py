@@ -46,3 +46,10 @@ class TestPersistence:
             tree2 = BinaryTree(storage2)
             with pytest.raises(KeyError):
                 tree2.get("lost_key")
+
+    def test_get_from_empty_db_raises_key_error(self, db_file):
+        with open(db_file, "r+b") as f:
+            storage = Storage(f)
+            tree = BinaryTree(storage)
+            with pytest.raises(KeyError):
+                tree.get("any_key")

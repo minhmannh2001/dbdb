@@ -20,3 +20,8 @@ Feature: Database Persistence
     And I close the database
     When I reconnect to the database
     Then getting the key "status" should result in an error
+
+  Scenario: Getting a key from a new, empty database fails
+    Given a new, empty database file
+    When I connect to the database
+    Then getting the key "any_key" should result in an error
