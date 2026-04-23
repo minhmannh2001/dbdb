@@ -88,6 +88,11 @@ class LogicalBase:
             self._follow(self._tree_ref), key, self.value_ref_class(value)
         )
 
+    def pop(self, key):
+        if self._storage.lock():
+            self._refresh_tree_ref()
+        self._tree_ref = self._delete(self._follow(self._tree_ref), key)
+
     def _get(self, node, key):
         raise NotImplementedError()
 

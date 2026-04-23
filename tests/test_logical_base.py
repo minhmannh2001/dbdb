@@ -20,6 +20,11 @@ class _StubStorage:
         return False
 
 
+class _DummyNode:
+    def __init__(self, address=0):
+        self.address = address
+
+
 class _DummyNodeRef:
     def __init__(self, referent=None, address=0):
         self.referent = referent
@@ -28,6 +33,9 @@ class _DummyNodeRef:
 
     def get(self, storage):
         self.seen_storage = storage
+        if self.referent is None and self.address != 0:
+            # Simulate loading a node from storage based on its address
+            return _DummyNode(address=self.address)
         return self.referent
 
 
@@ -68,7 +76,8 @@ def test_logical_base_set_locks_then_refreshes_then_updates_tree_ref():
     tree = _DummyTree(storage)
     tree.set("k", "v")
     node, key, value_ref = tree.last_insert
-    assert node is None
+    assert isinstance(node, _DummyNode)  # Now it's a _DummyNode, not None
+    assert node.address == storage.get_root_address()  # It should be the initial root
     assert key == "k"
     assert value_ref.get(storage) == "v"
     assert isinstance(tree._tree_ref, _DummyNodeRef)
@@ -83,3 +92,26 @@ def test_logical_base_set_second_write_keeps_current_locked_tree_ref():
     tree.set("k2", "v2")
     assert tree.last_insert[0] == first_tree_ref.referent
     assert first_tree_ref is not tree._tree_ref
+
+
+class _DummyTreeWithDelete(LogicalBase):
+    node_ref_class = _DummyNodeRef
+
+    def _insert(self, node, key, value_ref):
+        self.last_insert = (node, key, value_ref)
+        return _DummyNodeRef(referent=("inserted", key, value_ref), address=777)
+
+    def _delete(self, node, key):
+        self.last_delete = (node, key)
+        return _DummyNodeRef(referent=("deleted", key), address=888)
+
+
+def test_logical_base_pop_locks_then_refreshes_then_updates_tree_ref():
+    storage = _StubStorage(root_address=456)
+    tree = _DummyTreeWithDelete(storage)
+    tree.pop("k")
+    node, key = tree.last_delete
+    assert node.address == 456  # Initial root address
+    assert key == "k"
+    assert isinstance(tree._tree_ref, _DummyNodeRef)
+    assert tree._tree_ref.address == 888
