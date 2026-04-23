@@ -7,4 +7,5 @@ pytest_plugins = [
     "step_defs.value_ref_steps",
     "step_defs.binary_node_steps",
     "step_defs.persistence_steps",
+    "step_defs.interface_steps",
 ]
