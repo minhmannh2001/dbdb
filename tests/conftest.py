@@ -8,4 +8,5 @@ pytest_plugins = [
     "step_defs.binary_node_steps",
     "step_defs.persistence_steps",
     "step_defs.interface_steps",
+    "step_defs.connect_function_steps",
 ]
