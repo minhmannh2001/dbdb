@@ -76,6 +76,11 @@ class LogicalBase:
     def _follow(self, ref):
         return ref.get(self._storage)
 
+    def get(self, key):
+        if not self._storage.locked:
+            self._refresh_tree_ref()
+        return self._get(self._follow(self._tree_ref), key)
+
     def _get(self, node, key):
         raise NotImplementedError()
 
@@ -92,4 +97,3 @@ class LogicalBase:
         if root:
             return root.length
         return 0
-

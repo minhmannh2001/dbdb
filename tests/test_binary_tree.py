@@ -23,7 +23,15 @@ class StubStorage:
         pass
 
     def get_root_address(self):
-        return 0
+        return self._root_address
+
+    def commit_root_address(self, address):
+        self._root_address = address
+
+    def __init__(self):
+        self.d = [0]
+        self.locked = False
+        self._root_address = 0
 
     def write(self, data):
         address = len(self.d)
@@ -191,3 +199,18 @@ def test_binary_tree_len_tracks_node_count_when_tree_ref_is_dirty_in_locked_sess
     root = _build_root(tree, ("b", "2"), ("a", "1"), ("c", "3"))
     tree._tree_ref = BinaryNodeRef(referent=root)
     assert len(tree) == 3
+
+
+def test_logical_base_refresh_tree_ref_reads_new_root_address_from_storage():
+    storage = StubStorage()
+    tree = BinaryTree(storage)
+
+    # Simulate a new root address being committed to storage
+    new_root_address = 12345
+    storage.commit_root_address(new_root_address)
+
+    # Refresh the tree ref in LogicalBase
+    tree._refresh_tree_ref()
+
+    # Verify that the tree_ref now points to the new address
+    assert tree._tree_ref.address == new_root_address
