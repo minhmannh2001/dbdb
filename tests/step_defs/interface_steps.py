@@ -1,7 +1,7 @@
 # tests/step_defs/interface_steps.py
 import io
 import pytest
-from pytest_bdd import given, when, then
+from pytest_bdd import given, when, then, parsers
 
 # This import will fail until the class is created
 from dbdb.interface import DBDB
@@ -41,3 +41,63 @@ def instance_has_storage(context):
 def instance_has_tree(context):
     assert hasattr(context["db"], "_tree")
     assert isinstance(context["db"]._tree, BinaryTree)
+
+
+@given("a DBDB instance with a temporary file", target_fixture="context")
+def dbdb_instance_with_temp_file():
+    f = io.BytesIO()
+    db = DBDB(f)
+    return {"db": db, "file": f}
+
+
+@when(parsers.parse('I set the key "{key}" to "{value}" in the database'))
+def set_key_in_db(context, key, value):
+    context["db"][key] = value
+
+
+@then(
+    parsers.parse('getting the key "{key}" from the database should return "{value}"')
+)
+def get_key_from_db_returns_value(context, key, value):
+    assert context["db"][key] == value
+
+
+@when(parsers.parse('I delete the key "{key}" from the database'))
+def delete_key_from_db(context, key):
+    del context["db"][key]
+
+
+@then(
+    parsers.parse('getting the key "{key}" from the database should raise a KeyError')
+)
+def get_key_from_db_raises_key_error(context, key):
+    with pytest.raises(KeyError):
+        _ = context["db"][key]
+
+
+@when("I close the database instance")
+def close_db_instance(context):
+    # We need to add a close method to the DBDB class
+    if hasattr(context["db"], "close"):
+        context["db"].close()
+    else:
+        # For now, we can simulate closing by closing the storage
+        context["db"]._storage.close()
+
+
+@then(parsers.parse('setting the key "{key}" to "{value}" should raise a ValueError'))
+def set_key_on_closed_db_raises_value_error(context, key, value):
+    with pytest.raises(ValueError):
+        context["db"][key] = value
+
+
+@then(parsers.parse('getting the key "{key}" should raise a ValueError'))
+def get_key_on_closed_db_raises_value_error(context, key):
+    with pytest.raises(ValueError):
+        _ = context["db"][key]
+
+
+@then(parsers.parse('deleting the key "{key}" should raise a ValueError'))
+def delete_key_on_closed_db_raises_value_error(context, key):
+    with pytest.raises(ValueError):
+        del context["db"][key]
