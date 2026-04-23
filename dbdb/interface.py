@@ -33,3 +33,15 @@ class DBDB:
     def __delitem__(self, key):
         self._assert_not_closed()
         return self._tree.pop(key)
+
+    def __contains__(self, key):
+        self._assert_not_closed()
+        try:
+            self._tree.get(key)
+            return True
+        except KeyError:
+            return False
+
+    def __len__(self):
+        self._assert_not_closed()
+        return len(self._tree)

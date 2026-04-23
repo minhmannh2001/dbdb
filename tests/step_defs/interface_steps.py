@@ -101,3 +101,18 @@ def get_key_on_closed_db_raises_value_error(context, key):
 def delete_key_on_closed_db_raises_value_error(context, key):
     with pytest.raises(ValueError):
         del context["db"][key]
+
+
+@then(parsers.parse('the key "{key}" should exist in the database'))
+def key_should_exist(context, key):
+    assert key in context["db"]
+
+
+@then(parsers.parse('the key "{key}" should not exist in the database'))
+def key_should_not_exist(context, key):
+    assert key not in context["db"]
+
+
+@then(parsers.parse("the length of the database should be {length:d}"))
+def db_length_should_be(context, length):
+    assert len(context["db"]) == length

@@ -43,3 +43,24 @@ class TestDBDB:
 
         with pytest.raises(ValueError):
             del db["a"]
+
+    def test_contains_len(self):
+        f = io.BytesIO()
+        db = DBDB(f)
+
+        # Set two keys
+        db["a"] = "1"
+        db["b"] = "2"
+
+        # Check contains
+        assert "a" in db
+        assert "b" in db
+        assert "c" not in db
+
+        # Check len
+        assert len(db) == 2
+
+        # Delete a key and check again
+        del db["a"]
+        assert "a" not in db
+        assert len(db) == 1

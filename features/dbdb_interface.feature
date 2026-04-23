@@ -27,3 +27,15 @@ Feature: DBDB Public API
     Then setting the key "a" to "1" should raise a ValueError
     And getting the key "a" should raise a ValueError
     And deleting the key "a" should raise a ValueError
+
+  Scenario: Checking for key existence
+    Given a DBDB instance with a temporary file
+    When I set the key "a" to "1" in the database
+    Then the key "a" should exist in the database
+    And the key "b" should not exist in the database
+
+  Scenario: Getting the database length
+    Given a DBDB instance with a temporary file
+    When I set the key "a" to "1" in the database
+    And I set the key "b" to "2" in the database
+    Then the length of the database should be 2
