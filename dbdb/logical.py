@@ -93,6 +93,10 @@ class LogicalBase:
             self._refresh_tree_ref()
         self._tree_ref = self._delete(self._follow(self._tree_ref), key)
 
+    def commit(self):
+        self._tree_ref.store(self._storage)
+        self._storage.commit_root_address(self._tree_ref.address)
+
     def _get(self, node, key):
         raise NotImplementedError()
 

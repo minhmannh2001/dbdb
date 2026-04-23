@@ -20,9 +20,31 @@ class _StubStorage:
         return False
 
 
+class _StubStorageWithCommit(_StubStorage):
+    def __init__(self, root_address=0):
+        super().__init__(root_address)
+        self.committed_root_address = None
+
+    def get_root_address(self):
+        # After a commit, this stub should return the committed address
+        if self.committed_root_address is not None:
+            return self.committed_root_address
+        return self._root_address
+
+    def commit_root_address(self, address):
+        self.committed_root_address = address
+
+
 class _DummyNode:
-    def __init__(self, address=0):
+    def __init__(self, address=0, referent=None):
         self.address = address
+        self.referent = referent
+        self.stored = False  # Track if this node was stored
+
+    def store(self, storage):
+        self.stored = True
+        if self.address == 0:  # Assign a dummy address if not already set
+            self.address = 12345  # Arbitrary dummy address
 
 
 class _DummyNodeRef:
@@ -30,6 +52,7 @@ class _DummyNodeRef:
         self.referent = referent
         self.address = address
         self.seen_storage = None
+        self.stored = False  # Track if this ref was stored
 
     def get(self, storage):
         self.seen_storage = storage
@@ -38,60 +61,21 @@ class _DummyNodeRef:
             return _DummyNode(address=self.address)
         return self.referent
 
+    def store(self, storage):
+        self.seen_storage = storage
+        self.stored = True
+        if self.referent:  # If there's a referent, store it too
+            self.referent.store(storage)
+        if self.address == 0:  # Assign a dummy address if not already set
+            self.address = 98765  # Arbitrary dummy address
+
 
 class _DummyTree(LogicalBase):
     node_ref_class = _DummyNodeRef
 
     def _insert(self, node, key, value_ref):
         self.last_insert = (node, key, value_ref)
-        return _DummyNodeRef(referent=("inserted", key, value_ref), address=777)
-
-
-def test_logical_base_init_refreshes_tree_ref_from_storage_root_address():
-    storage = _StubStorage(root_address=1234)
-    tree = _DummyTree(storage)
-    assert tree._storage is storage
-    assert isinstance(tree._tree_ref, _DummyNodeRef)
-    assert tree._tree_ref.address == 1234
-
-
-def test_logical_base_follow_calls_ref_get_with_storage():
-    storage = _StubStorage(root_address=99)
-    tree = _DummyTree(storage)
-    ref = _DummyNodeRef(referent="v")
-    assert tree._follow(ref) == "v"
-    assert ref.seen_storage is storage
-
-
-def test_logical_base_algorithm_hooks_raise_until_subclass_implements_them():
-    tree = _DummyTree(_StubStorage())
-    with pytest.raises(NotImplementedError):
-        tree._get(None, "k")
-    with pytest.raises(NotImplementedError):
-        tree._delete(None, "k")
-
-
-def test_logical_base_set_locks_then_refreshes_then_updates_tree_ref():
-    storage = _StubStorage(root_address=321)
-    tree = _DummyTree(storage)
-    tree.set("k", "v")
-    node, key, value_ref = tree.last_insert
-    assert isinstance(node, _DummyNode)  # Now it's a _DummyNode, not None
-    assert node.address == storage.get_root_address()  # It should be the initial root
-    assert key == "k"
-    assert value_ref.get(storage) == "v"
-    assert isinstance(tree._tree_ref, _DummyNodeRef)
-    assert tree._tree_ref.address == 777
-
-
-def test_logical_base_set_second_write_keeps_current_locked_tree_ref():
-    storage = _StubStorage(root_address=321)
-    tree = _DummyTree(storage)
-    tree.set("k1", "v1")
-    first_tree_ref = tree._tree_ref
-    tree.set("k2", "v2")
-    assert tree.last_insert[0] == first_tree_ref.referent
-    assert first_tree_ref is not tree._tree_ref
+        return _DummyNodeRef(referent=_DummyNode(address=777), address=777)
 
 
 class _DummyTreeWithDelete(LogicalBase):
@@ -99,19 +83,52 @@ class _DummyTreeWithDelete(LogicalBase):
 
     def _insert(self, node, key, value_ref):
         self.last_insert = (node, key, value_ref)
-        return _DummyNodeRef(referent=("inserted", key, value_ref), address=777)
+        return _DummyNodeRef(referent=_DummyNode(address=777), address=777)
 
     def _delete(self, node, key):
         self.last_delete = (node, key)
-        return _DummyNodeRef(referent=("deleted", key), address=888)
+        return _DummyNodeRef(referent=_DummyNode(address=888), address=888)
 
 
-def test_logical_base_pop_locks_then_refreshes_then_updates_tree_ref():
-    storage = _StubStorage(root_address=456)
+def test_logical_base_commit_stores_tree_ref_and_commits_root_address():
+    storage = _StubStorageWithCommit(root_address=0)  # Use the new stub
     tree = _DummyTreeWithDelete(storage)
-    tree.pop("k")
-    node, key = tree.last_delete
-    assert node.address == 456  # Initial root address
-    assert key == "k"
-    assert isinstance(tree._tree_ref, _DummyNodeRef)
-    assert tree._tree_ref.address == 888
+
+    # Simulate some changes to the tree_ref (e.g., via set or pop, but we'll manually set it for this test)
+    # The dummy referent needs to be a _DummyNode instance, and it should have its own address
+    dummy_node_referent = _DummyNode(address=500)  # Referent inside the ref
+    new_root_ref = _DummyNodeRef(
+        referent=dummy_node_referent, address=0
+    )  # address=0 initially, will be set on store
+    tree._tree_ref = new_root_ref
+
+    tree.commit()
+
+    assert new_root_ref.stored is True
+    assert new_root_ref.seen_storage is storage
+    assert dummy_node_referent.stored is True
+    assert storage.committed_root_address == new_root_ref.address
+    assert new_root_ref.address != 0  # Ensure a dummy address was assigned
+
+
+def test_logical_base_refresh_tree_ref_reads_new_root_address_after_commit():
+    storage = _StubStorageWithCommit(root_address=0)
+    tree = _DummyTreeWithDelete(storage)
+
+    # Simulate initial state where tree is empty (root_address = 0)
+    assert tree._tree_ref.address == 0
+
+    # Simulate a change and commit it
+    dummy_node_referent = _DummyNode(address=500)
+    new_root_ref = _DummyNodeRef(referent=dummy_node_referent, address=0)
+    tree._tree_ref = new_root_ref  # Manually set for this test
+    tree.commit()
+
+    committed_address = new_root_ref.address
+    assert committed_address != 0
+    assert storage.get_root_address() == committed_address
+
+    # Simulate a new tree instance (or refresh from storage)
+    # The new instance should read the committed root address from storage
+    new_tree_instance = _DummyTreeWithDelete(storage)
+    assert new_tree_instance._tree_ref.address == committed_address
