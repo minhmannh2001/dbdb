@@ -81,6 +81,13 @@ class LogicalBase:
             self._refresh_tree_ref()
         return self._get(self._follow(self._tree_ref), key)
 
+    def set(self, key, value):
+        if self._storage.lock():
+            self._refresh_tree_ref()
+        self._tree_ref = self._insert(
+            self._follow(self._tree_ref), key, self.value_ref_class(value)
+        )
+
     def _get(self, node, key):
         raise NotImplementedError()
 

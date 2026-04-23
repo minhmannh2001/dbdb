@@ -201,6 +201,16 @@ def test_binary_tree_len_tracks_node_count_when_tree_ref_is_dirty_in_locked_sess
     assert len(tree) == 3
 
 
+def test_binary_tree_multiple_set_without_commit_visible_in_process():
+    tree = BinaryTree(StubStorage())
+    tree.set("a", "1")
+    tree.set("b", "2")
+    tree.set("c", "3")
+    assert tree.get("a") == "1"
+    assert tree.get("b") == "2"
+    assert tree.get("c") == "3"
+
+
 def test_logical_base_refresh_tree_ref_reads_new_root_address_from_storage():
     storage = StubStorage()
     tree = BinaryTree(storage)
