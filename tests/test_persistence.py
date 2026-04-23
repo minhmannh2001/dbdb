@@ -53,3 +53,22 @@ class TestPersistence:
             tree = BinaryTree(storage)
             with pytest.raises(KeyError):
                 tree.get("any_key")
+
+    def test_only_committed_keys_are_persisted(self, db_file):
+        # First session
+        with open(db_file, "r+b") as f:
+            storage1 = Storage(f)
+            tree1 = BinaryTree(storage1)
+            tree1.set("a", "1")
+            tree1.set("b", "2")
+            tree1.commit()
+            tree1.set("c", "3")
+
+        # Second session
+        with open(db_file, "r+b") as f:
+            storage2 = Storage(f)
+            tree2 = BinaryTree(storage2)
+            assert tree2.get("a") == "1"
+            assert tree2.get("b") == "2"
+            with pytest.raises(KeyError):
+                tree2.get("c")

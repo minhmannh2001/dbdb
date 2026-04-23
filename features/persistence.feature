@@ -25,3 +25,16 @@ Feature: Database Persistence
     Given a new, empty database file
     When I connect to the database
     Then getting the key "any_key" should result in an error
+
+  Scenario: Only committed keys are persisted across sessions
+    Given a new, empty database file
+    When I connect to the database
+    And I set the key "a" to the value "1"
+    And I set the key "b" to the value "2"
+    And I commit the changes
+    And I set the key "c" to the value "3"
+    And I close the database
+    When I reconnect to the database
+    Then getting the key "a" should return the value "1"
+    And getting the key "b" should return the value "2"
+    And getting the key "c" should result in an error
