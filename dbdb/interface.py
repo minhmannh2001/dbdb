@@ -45,3 +45,10 @@ class DBDB:
     def __len__(self):
         self._assert_not_closed()
         return len(self._tree)
+
+    def commit(self):
+        self._assert_not_closed()
+        self._tree.commit()
+
+    def close(self):
+        self._storage.close()

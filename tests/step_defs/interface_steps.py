@@ -77,12 +77,19 @@ def get_key_from_db_raises_key_error(context, key):
 
 @when("I close the database instance")
 def close_db_instance(context):
-    # We need to add a close method to the DBDB class
-    if hasattr(context["db"], "close"):
-        context["db"].close()
-    else:
-        # For now, we can simulate closing by closing the storage
-        context["db"]._storage.close()
+    context["db"].close()
+
+
+@when("I commit the database changes")
+def commit_db_changes(context):
+    context["db"].commit()
+
+
+@when("I reopen the database from the same file")
+def reopen_db(context):
+    f = context["file"]
+    f.seek(0)
+    context["db"] = DBDB(f)
 
 
 @then(parsers.parse('setting the key "{key}" to "{value}" should raise a ValueError'))

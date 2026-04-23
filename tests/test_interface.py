@@ -33,7 +33,7 @@ class TestDBDB:
     def test_closed_db_raises_error(self):
         f = io.BytesIO()
         db = DBDB(f)
-        db._storage.close()  # Simulate closing
+        db.close()
 
         with pytest.raises(ValueError):
             db["a"] = "1"
@@ -43,6 +43,17 @@ class TestDBDB:
 
         with pytest.raises(ValueError):
             del db["a"]
+
+    def test_commit(self):
+        f = io.BytesIO()
+        db = DBDB(f)
+        db["a"] = "1"
+        db.commit()
+
+        # Reopen and check
+        db2 = DBDB(f)
+        assert db2["a"] == "1"
+        assert len(db2) == 1
 
     def test_contains_len(self):
         f = io.BytesIO()

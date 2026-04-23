@@ -39,3 +39,10 @@ Feature: DBDB Public API
     When I set the key "a" to "1" in the database
     And I set the key "b" to "2" in the database
     Then the length of the database should be 2
+
+  Scenario: Committing changes
+    Given a DBDB instance with a temporary file
+    When I set the key "a" to "1" in the database
+    And I commit the database changes
+    And I reopen the database from the same file
+    Then getting the key "a" from the database should return "1"
