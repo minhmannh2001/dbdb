@@ -120,6 +120,13 @@ class Storage:
         self.unlock()
         self._f.close()
 
+    def is_file_replaced(self) -> bool:
+        """True if the file at our path was replaced since we opened it (e.g. by compaction)."""
+        try:
+            return os.fstat(self._f.fileno()).st_ino != os.stat(self._f.name).st_ino
+        except (OSError, io.UnsupportedOperation):
+            return False
+
     @property
     def closed(self) -> bool:
         return self._f.closed

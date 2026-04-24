@@ -165,3 +165,14 @@ class BinaryTree(LogicalBase):
             if next_node is None:
                 return node
             node = next_node
+
+    def _iter_nodes(self, node: Optional[BinaryNode]):
+        if node:
+            yield from self._iter_nodes(self._follow(node.left_ref))
+            yield node
+            yield from self._iter_nodes(self._follow(node.right_ref))
+
+    def __iter__(self):
+        root = self._follow(self._tree_ref)
+        for node in self._iter_nodes(root):
+            yield node.key

@@ -117,3 +117,6 @@ class LogicalBase:
         if root:
             return root.length
         return 0
+
+    def __iter__(self):
+        return iter(self._tree_ref)
