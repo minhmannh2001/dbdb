@@ -1,4 +1,6 @@
 # dbdb/interface.py
+from typing import IO
+
 from dbdb.physical import Storage
 from dbdb.binary_tree import BinaryTree
 
@@ -9,7 +11,7 @@ class DBDB:
     interface to the underlying key-value store.
     """
 
-    def __init__(self, f):
+    def __init__(self, f: IO):
         """
         Initializes a new DBDB instance.
 
@@ -18,23 +20,23 @@ class DBDB:
         self._storage = Storage(f)
         self._tree = BinaryTree(self._storage)
 
-    def _assert_not_closed(self):
+    def _assert_not_closed(self) -> None:
         if self._storage.closed:
             raise ValueError("Database closed.")
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> str:
         self._assert_not_closed()
         return self._tree.get(key)
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: str) -> None:
         self._assert_not_closed()
         return self._tree.set(key, value)
 
-    def __delitem__(self, key):
+    def __delitem__(self, key: str) -> None:
         self._assert_not_closed()
         return self._tree.pop(key)
 
-    def __contains__(self, key):
+    def __contains__(self, key: str) -> bool:
         self._assert_not_closed()
         try:
             self._tree.get(key)
@@ -42,13 +44,13 @@ class DBDB:
         except KeyError:
             return False
 
-    def __len__(self):
+    def __len__(self) -> int:
         self._assert_not_closed()
         return len(self._tree)
 
-    def commit(self):
+    def commit(self) -> None:
         self._assert_not_closed()
         self._tree.commit()
 
-    def close(self):
+    def close(self) -> None:
         self._storage.close()

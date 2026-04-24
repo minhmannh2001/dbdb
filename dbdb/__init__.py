@@ -2,8 +2,10 @@
 import os
 from .interface import DBDB
 
+__all__ = ["connect"]
 
-def connect(dbname):
+
+def connect(dbname: str) -> DBDB:
     """
     Connect to a database file.
 

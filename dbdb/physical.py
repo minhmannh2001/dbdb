@@ -3,6 +3,7 @@
 import io
 import os
 import struct
+from typing import IO
 
 import portalocker
 
@@ -14,7 +15,7 @@ class Storage:
     INTEGER_FORMAT = "!Q"
     INTEGER_LENGTH = 8
 
-    def __init__(self, f):
+    def __init__(self, f: IO):
         self._f = f
         self.locked = False
         self._ensure_superblock()
@@ -39,7 +40,7 @@ class Storage:
                 pass
             self.locked = False
 
-    def _ensure_superblock(self):
+    def _ensure_superblock(self) -> None:
         self.lock()
         self._seek_end()
         end_address = self._f.tell()
@@ -47,10 +48,10 @@ class Storage:
             self._f.write(b"\x00" * (self.SUPERBLOCK_SIZE - end_address))
         self.unlock()
 
-    def _seek_end(self):
+    def _seek_end(self) -> None:
         self._f.seek(0, os.SEEK_END)
 
-    def _seek_superblock(self):
+    def _seek_superblock(self) -> None:
         self._f.seek(0)
 
     def _fsync_if_possible(self) -> None:

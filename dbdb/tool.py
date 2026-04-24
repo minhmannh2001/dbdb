@@ -1,10 +1,11 @@
 # dbdb/tool.py
 import sys
+from typing import List
 
 import dbdb
 
 
-def main(argv):
+def main(argv: List[str]) -> int:
     if not (3 <= len(argv) <= 5):
         usage()
         return 1
@@ -52,7 +53,7 @@ def main(argv):
     return 0
 
 
-def usage():
+def usage() -> None:
     sys.stderr.write(
         "Usage: python -m dbdb.tool DBNAME [get KEY | set KEY VALUE | delete KEY]\n"
     )

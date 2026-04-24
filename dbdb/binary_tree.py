@@ -4,19 +4,20 @@ from __future__ import annotations
 
 import pickle
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 from dbdb.logical import LogicalBase, ValueRef
+from dbdb.physical import Storage
 
 
 @dataclass
 class BinaryNode:
     """In-memory BST node: child refs, key, value ref, and subtree size."""
 
-    left_ref: Any
-    key: Any
-    value_ref: Any
-    right_ref: Any
+    left_ref: BinaryNodeRef
+    key: str
+    value_ref: ValueRef
+    right_ref: BinaryNodeRef
     length: int
 
     @classmethod
@@ -35,7 +36,7 @@ class BinaryNode:
             length=length,
         )
 
-    def store_refs(self, storage) -> None:
+    def store_refs(self, storage: Storage) -> None:
         """Persist value ref then child refs (same order as reference `store_refs`)."""
         self.value_ref.store(storage)
         self.left_ref.store(storage)
@@ -54,7 +55,7 @@ class BinaryNodeRef(ValueRef):
             return self._referent.length
         return 0
 
-    def prepare_to_store(self, storage) -> None:
+    def prepare_to_store(self, storage: Storage) -> None:
         if self._referent:
             self._referent.store_refs(storage)
 
@@ -89,7 +90,7 @@ class BinaryTree(LogicalBase):
     node_ref_class = BinaryNodeRef
     value_ref_class = ValueRef
 
-    def _get(self, node, key):
+    def _get(self, node: Optional[BinaryNode], key: str) -> str:
         while node is not None:
             if key < node.key:
                 node = self._follow(node.left_ref)
@@ -99,7 +100,9 @@ class BinaryTree(LogicalBase):
                 return self._follow(node.value_ref)
         raise KeyError
 
-    def _insert(self, node, key, value_ref):
+    def _insert(
+        self, node: Optional[BinaryNode], key: str, value_ref: ValueRef
+    ) -> BinaryNodeRef:
         if node is None:
             new_node = BinaryNode(
                 self.node_ref_class(),
@@ -122,7 +125,7 @@ class BinaryTree(LogicalBase):
             new_node = BinaryNode.from_node(node, value_ref=value_ref)
         return self.node_ref_class(referent=new_node)
 
-    def _delete(self, node, key):
+    def _delete(self, node: Optional[BinaryNode], key: str) -> Optional[BinaryNodeRef]:
         if node is None:
             raise KeyError
         elif key < node.key:
@@ -154,7 +157,7 @@ class BinaryTree(LogicalBase):
                 return node.right_ref
         return self.node_ref_class(referent=new_node)
 
-    def _find_max(self, node):
+    def _find_max(self, node: BinaryNode) -> BinaryNode:
         while True:
             next_node = self._follow(node.right_ref)
             if next_node is None:
