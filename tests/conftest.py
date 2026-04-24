@@ -9,4 +9,5 @@ pytest_plugins = [
     "step_defs.persistence_steps",
     "step_defs.interface_steps",
     "step_defs.connect_function_steps",
+    "step_defs.cli_steps",
 ]
