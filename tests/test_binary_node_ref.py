@@ -1,7 +1,7 @@
 """Tests for BinaryNode / BinaryNodeRef (Phase 3)."""
 
 import io
-import pickle
+import msgpack
 from dataclasses import dataclass
 
 import pytest
@@ -111,7 +111,9 @@ def test_binary_node_ref_prepare_to_store_persists_leaf_value_and_children():
     left = ValueRef("")
     right = ValueRef("")
     value = ValueRef("leaf")
-    node = BinaryNode(left_ref=left, key="k", value_ref=value, right_ref=right, length=1)
+    node = BinaryNode(
+        left_ref=left, key="k", value_ref=value, right_ref=right, length=1
+    )
     root = BinaryNodeRef(referent=node)
     root.prepare_to_store(storage)
     assert value.address != 0
@@ -128,9 +130,11 @@ def test_binary_node_ref_referent_to_bytes_pickles_address_dict():
     left = BinaryNodeRef(address=11)
     right = BinaryNodeRef(address=22)
     value = ValueRef(address=33)
-    node = BinaryNode(left_ref=left, key="k", value_ref=value, right_ref=right, length=7)
+    node = BinaryNode(
+        left_ref=left, key="k", value_ref=value, right_ref=right, length=7
+    )
     raw = BinaryNodeRef.referent_to_bytes(node)
-    d = pickle.loads(raw)
+    d = msgpack.unpackb(raw, raw=False)
     assert set(d) == {"left", "key", "value", "right", "length"}
     assert d["left"] == 11
     assert d["key"] == "k"
@@ -219,7 +223,7 @@ def test_binary_node_ref_store_nested_persists_pickled_nodes():
     root.store(storage)
 
     assert root.address != 0
-    outer_doc = pickle.loads(storage.read(root.address))
+    outer_doc = msgpack.unpackb(storage.read(root.address), raw=False)
     assert outer_doc["key"] == "root"
     assert outer_doc["length"] == 1
     assert outer_doc["left"] == inner_wrapped.address
@@ -227,7 +231,7 @@ def test_binary_node_ref_store_nested_persists_pickled_nodes():
     assert outer_doc["right"] != 0
 
     assert inner_wrapped.address != 0
-    inner_doc = pickle.loads(storage.read(inner_wrapped.address))
+    inner_doc = msgpack.unpackb(storage.read(inner_wrapped.address), raw=False)
     assert inner_doc["key"] == "inner"
     assert set(inner_doc) == {"left", "key", "value", "right", "length"}
     assert inner_doc["length"] == 1

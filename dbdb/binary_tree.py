@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import msgpack
 import pickle
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -61,8 +62,8 @@ class BinaryNodeRef(ValueRef):
 
     @staticmethod
     def referent_to_bytes(referent: BinaryNode) -> bytes:
-        """Pickle a small dict of addresses and metadata (no nested Python objects)."""
-        return pickle.dumps(
+        """Pack a dict of addresses and metadata into bytes."""
+        return msgpack.packb(
             {
                 "left": referent.left_ref.address,
                 "key": referent.key,
@@ -74,7 +75,8 @@ class BinaryNodeRef(ValueRef):
 
     @staticmethod
     def bytes_to_referent(data: bytes) -> BinaryNode:
-        d = pickle.loads(data)
+        """Unpack bytes into a `BinaryNode`."""
+        d = msgpack.unpackb(data, raw=False)
         return BinaryNode(
             BinaryNodeRef(address=d["left"]),
             d["key"],
