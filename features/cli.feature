@@ -8,3 +8,11 @@ Feature: Command-Line Interface (CLI) Tool
     When I run the command "get a" on "test.db"
     Then the command should succeed
     And the standard output should be exactly "1"
+
+  Scenario: Setting a key and committing via CLI
+    Given an empty database file "test.db"
+    When I run the command "set a 1" on "test.db"
+    And I run the command "commit" on "test.db"
+    And I run the command "get a" on "test.db"
+    Then the command should succeed
+    And the standard output should be exactly "1"

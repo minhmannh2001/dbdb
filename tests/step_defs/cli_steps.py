@@ -25,6 +25,15 @@ def populated_db_file(dbname, key, value):
     os.remove(dbname)
 
 
+@given(parsers.parse('an empty database file "{dbname}"'))
+def empty_db_file(dbname):
+    if os.path.exists(dbname):
+        os.remove(dbname)
+    yield
+    if os.path.exists(dbname):
+        os.remove(dbname)
+
+
 @when(parsers.parse('I run the command "{command}" on "{dbname}"'))
 def run_cli_command(command, dbname, context):
     # We need to construct the full command to run via subprocess

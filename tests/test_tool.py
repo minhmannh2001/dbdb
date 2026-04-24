@@ -37,3 +37,22 @@ class TestTool:
         assert result.returncode == 0
         assert result.stdout == "123"
         assert result.stderr == ""
+
+    def test_set_commit_get_commands(self, temp_db_path):
+        # Run `set`
+        result_set = run_tool(temp_db_path, ["set", "b", "456"])
+        assert result_set.returncode == 0
+        assert result_set.stdout == ""
+        assert result_set.stderr == ""
+
+        # Run `commit`
+        result_commit = run_tool(temp_db_path, ["commit"])
+        assert result_commit.returncode == 0
+        assert result_commit.stdout == ""
+        assert result_commit.stderr == ""
+
+        # Run `get` to verify
+        result_get = run_tool(temp_db_path, ["get", "b"])
+        assert result_get.returncode == 0
+        assert result_get.stdout == "456"
+        assert result_get.stderr == ""

@@ -20,6 +20,18 @@ def main(argv):
                 return 1
             key = args[0]
             sys.stdout.write(db[key])
+        elif command == "set":
+            if len(args) != 2:
+                usage()
+                return 1
+            key, value = args
+            db[key] = value
+            db.commit()
+        elif command == "commit":
+            if len(args) != 0:
+                usage()
+                return 1
+            db.commit()
         else:
             usage()
             return 1
