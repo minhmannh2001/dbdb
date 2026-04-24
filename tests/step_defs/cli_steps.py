@@ -58,6 +58,16 @@ def command_should_succeed(context):
     assert context["result"].stderr == ""
 
 
+@then("the command should fail")
+def command_should_fail(context):
+    assert context["result"].returncode != 0
+
+
+@then(parsers.parse('the standard error should contain "{text}"'))
+def stderr_should_contain(context, text):
+    assert text in context["result"].stderr
+
+
 @then(parsers.parse('the standard output should be exactly "{output}"'))
 def stdout_should_be(context, output):
     # The reference tool doesn't add a newline, so we don't either.

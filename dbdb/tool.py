@@ -32,6 +32,17 @@ def main(argv):
                 usage()
                 return 1
             db.commit()
+        elif command == "delete":
+            if len(args) != 1:
+                usage()
+                return 1
+            key = args[0]
+            try:
+                del db[key]
+                db.commit()
+            except KeyError:
+                sys.stderr.write("Key not found\n")
+                return 1
         else:
             usage()
             return 1

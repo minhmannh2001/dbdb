@@ -56,3 +56,22 @@ class TestTool:
         assert result_get.returncode == 0
         assert result_get.stdout == "456"
         assert result_get.stderr == ""
+
+    def test_delete_command(self, temp_db_path):
+        # Setup
+        run_tool(temp_db_path, ["set", "c", "789"])
+        # No need to commit, `set` autocommits
+
+        # Run `delete`
+        result_delete = run_tool(temp_db_path, ["delete", "c"])
+        assert result_delete.returncode == 0
+
+        # Verify with `get`
+        result_get = run_tool(temp_db_path, ["get", "c"])
+        assert result_get.returncode != 0
+
+    def test_delete_missing_key_fails(self, temp_db_path):
+        # Run `delete` on a non-existent key
+        result_delete = run_tool(temp_db_path, ["delete", "non-existent"])
+        assert result_delete.returncode != 0
+        assert "Key not found" in result_delete.stderr
