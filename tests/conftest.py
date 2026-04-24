@@ -11,4 +11,5 @@ pytest_plugins = [
     "step_defs.connect_function_steps",
     "step_defs.cli_steps",
     "step_defs.compaction_steps",
+    "step_defs.reopen_steps",
 ]

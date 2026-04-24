@@ -35,6 +35,33 @@ class DBDB:
             self._storage = Storage(open(path, "r+b"))
             self._tree = BinaryTree(self._storage)
 
+    def _prepare_write(self) -> None:
+        """Acquire the write lock, closing the TOCTOU window for write operations.
+
+        _reopen_if_replaced() alone is not sufficient for writes: compact could
+        run between the pre-lock check and the moment the lock is acquired, leaving
+        the write targeting the orphaned inode.
+
+        Fix: after acquiring the lock, check again. Once we hold the exclusive lock
+        compact cannot run, so a True result here is conclusive.
+
+        Two outcomes after this method returns:
+          - No replacement: lock held, tree ref refreshed. self._tree.set/pop
+            will see locked=True and skip their own lock+refresh.
+          - Replacement detected post-lock: old storage closed (lock released),
+            new storage+tree opened. self._tree.set/pop will acquire the lock
+            and refresh on the new storage.
+        """
+        self._reopen_if_replaced()
+        if self._storage.lock():
+            if self._storage.is_file_replaced():
+                path = self._storage._f.name
+                self._storage.close()
+                self._storage = Storage(open(path, "r+b"))
+                self._tree = BinaryTree(self._storage)
+            else:
+                self._tree._refresh_tree_ref()
+
     def __getitem__(self, key: str) -> str:
         self._assert_not_closed()
         self._reopen_if_replaced()
@@ -42,12 +69,12 @@ class DBDB:
 
     def __setitem__(self, key: str, value: str) -> None:
         self._assert_not_closed()
-        self._reopen_if_replaced()
+        self._prepare_write()
         return self._tree.set(key, value)
 
     def __delitem__(self, key: str) -> None:
         self._assert_not_closed()
-        self._reopen_if_replaced()
+        self._prepare_write()
         return self._tree.pop(key)
 
     def __contains__(self, key: str) -> bool:

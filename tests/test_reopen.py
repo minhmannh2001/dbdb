@@ -2,6 +2,7 @@
 import io
 import os
 import tempfile
+from unittest.mock import patch
 
 import pytest
 
@@ -155,5 +156,100 @@ class TestReopenIfReplaced:
         assert db._storage.locked is True
         assert db._storage.is_file_replaced() is False
 
+        db.commit()
+        db.close()
+
+
+class TestPrepareWrite:
+    def test_no_reopen_when_file_not_replaced(self, db_path):
+        db = dbdb.connect(db_path)
+        db["a"] = "1"
+        db.commit()
+        storage_before = db._storage
+
+        db._prepare_write()
+
+        assert db._storage is storage_before
+        db.commit()
+        db.close()
+
+    def test_tree_ref_refreshed_on_first_lock(self, db_path):
+        # After _prepare_write(), self._tree.set() must NOT call _refresh_tree_ref
+        # again (lock is already held). Verify by checking the lock state.
+        db = dbdb.connect(db_path)
+        db["a"] = "1"
+        db.commit()
+
+        db._prepare_write()
+
+        assert db._storage.locked is True
+        db.commit()
+        db.close()
+
+    def test_mid_session_write_skips_reopen_check(self, db_path):
+        # Second set() in the same session: _prepare_write finds lock already held,
+        # skips both reopen check and refresh. Storage object must not change.
+        db = dbdb.connect(db_path)
+        db["a"] = "1"             # acquires lock via _prepare_write
+        storage_after_first = db._storage
+
+        db["b"] = "2"             # second write — _prepare_write must be a no-op
+
+        assert db._storage is storage_after_first
+        db.commit()
+        db.close()
+
+    def test_toctou_setitem_writes_to_new_file(self, db_path):
+        # Simulate the TOCTOU race: pre-lock check passes (patched to no-op),
+        # compact replaces the file, post-lock check inside _prepare_write catches it.
+        db = dbdb.connect(db_path)
+        db["a"] = "original"
+        db.commit()
+
+        # Suppress _reopen_if_replaced so the pre-lock check is bypassed,
+        # then replace the file before __setitem__ acquires the lock.
+        with patch.object(db, "_reopen_if_replaced", return_value=None):
+            simulate_replacement(db_path, {"a": "compacted"})
+            db["b"] = "new_write"
+            db.commit()
+
+        db.close()
+
+        verify = dbdb.connect(db_path)
+        assert verify["a"] == "compacted"
+        assert verify["b"] == "new_write"
+        verify.close()
+
+    def test_toctou_delitem_writes_to_new_file(self, db_path):
+        db = dbdb.connect(db_path)
+        db["a"] = "1"
+        db["b"] = "to_delete"
+        db.commit()
+
+        with patch.object(db, "_reopen_if_replaced", return_value=None):
+            simulate_replacement(db_path, {"a": "1", "b": "to_delete"})
+            del db["b"]
+            db.commit()
+
+        db.close()
+
+        verify = dbdb.connect(db_path)
+        assert verify["a"] == "1"
+        with pytest.raises(KeyError):
+            _ = verify["b"]
+        verify.close()
+
+    def test_toctou_triggers_storage_replacement(self, db_path):
+        # Verify that _prepare_write replaces storage/tree when TOCTOU is detected.
+        db = dbdb.connect(db_path)
+        db["a"] = "1"
+        db.commit()
+        old_storage = db._storage
+
+        with patch.object(db, "_reopen_if_replaced", return_value=None):
+            simulate_replacement(db_path, {"a": "1"})
+            db._prepare_write()
+
+        assert db._storage is not old_storage
         db.commit()
         db.close()
