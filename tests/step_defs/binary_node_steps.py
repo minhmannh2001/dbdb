@@ -24,6 +24,7 @@ def chapter_shaped_leaf_root_ref():
             ValueRef("pay\u2014bdd"),
             BinaryNodeRef(),
             1,
+            0,
         )
     )
 
@@ -51,7 +52,7 @@ def assert_value_payload(loaded_root, storage):
 
 @given("a single-key leaf with placeholder child refs", target_fixture="leaf")
 def leaf_with_placeholder_children():
-    return BinaryNode(ValueRef(), "k", ValueRef("v"), ValueRef(), 1)
+    return BinaryNode(ValueRef(), "k", ValueRef("v"), ValueRef(), 1, 0)
 
 
 @when(

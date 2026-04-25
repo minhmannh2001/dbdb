@@ -20,6 +20,7 @@ class BinaryNode:
     value_ref: ValueRef
     right_ref: BinaryNodeRef
     length: int
+    height: int
 
     @classmethod
     def from_node(cls, node: BinaryNode, **kwargs: Any) -> BinaryNode:
@@ -35,6 +36,7 @@ class BinaryNode:
             value_ref=kwargs.get("value_ref", node.value_ref),
             right_ref=kwargs.get("right_ref", node.right_ref),
             length=length,
+            height=node.height,  # For now, just copy. Balancing will fix this.
         )
 
     def store_refs(self, storage: Storage) -> None:
@@ -70,6 +72,7 @@ class BinaryNodeRef(ValueRef):
                 "value": referent.value_ref.address,
                 "right": referent.right_ref.address,
                 "length": referent.length,
+                "height": referent.height,
             }
         )
 
@@ -83,6 +86,7 @@ class BinaryNodeRef(ValueRef):
             ValueRef(address=d["value"]),
             BinaryNodeRef(address=d["right"]),
             d["length"],
+            d["height"],
         )
 
 
@@ -112,6 +116,7 @@ class BinaryTree(LogicalBase):
                 value_ref,
                 self.node_ref_class(),
                 1,
+                0,
             )
         elif key < node.key:
             new_node = BinaryNode.from_node(
@@ -146,12 +151,12 @@ class BinaryTree(LogicalBase):
             if left and right:
                 replacement = self._find_max(left)
                 left_ref = self._delete(self._follow(node.left_ref), replacement.key)
-                new_node = BinaryNode(
-                    left_ref,
-                    replacement.key,
-                    replacement.value_ref,
-                    node.right_ref,
-                    left_ref.length + node.right_ref.length + 1,
+                # Use from_node to correctly recalculate length
+                new_node = BinaryNode.from_node(
+                    node,
+                    key=replacement.key,
+                    value_ref=replacement.value_ref,
+                    left_ref=left_ref,
                 )
             elif left:
                 return node.left_ref

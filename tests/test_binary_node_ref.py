@@ -29,6 +29,7 @@ def test_binary_node_leaf_in_ram():
         value_ref=value,
         right_ref=right,
         length=1,
+        height=0,
     )
     assert node.left_ref is left
     assert node.key == "k"
@@ -48,6 +49,7 @@ def test_from_node_updates_length_after_simulated_left_insert():
         value_ref=value,
         right_ref=right,
         length=1,
+        height=0,
     )
     new_left = _SubtreeRef(length=1)
     updated = BinaryNode.from_node(root, left_ref=new_left)
@@ -61,7 +63,7 @@ def test_from_node_updates_length_after_simulated_left_insert():
 def test_from_node_updates_length_when_both_children_change():
     left = ValueRef()
     right = ValueRef()
-    root = BinaryNode(left, "k", ValueRef("x"), right, length=1)
+    root = BinaryNode(left, "k", ValueRef("x"), right, length=1, height=0)
     out = BinaryNode.from_node(
         root,
         left_ref=_SubtreeRef(length=2),
@@ -77,6 +79,7 @@ def test_from_node_value_replace_does_not_touch_subtree_length_formula():
         ValueRef("old"),
         ValueRef(),
         length=1,
+        height=0,
     )
     new_val = ValueRef("new")
     out = BinaryNode.from_node(root, value_ref=new_val)
@@ -97,6 +100,7 @@ def test_binary_node_leaf_store_refs_persists_all_three_refs():
         value_ref=value,
         right_ref=right,
         length=1,
+        height=0,
     )
     node.store_refs(storage)
     assert value.address != 0
@@ -112,7 +116,7 @@ def test_binary_node_ref_prepare_to_store_persists_leaf_value_and_children():
     right = ValueRef("")
     value = ValueRef("leaf")
     node = BinaryNode(
-        left_ref=left, key="k", value_ref=value, right_ref=right, length=1
+        left_ref=left, key="k", value_ref=value, right_ref=right, length=1, height=0
     )
     root = BinaryNodeRef(referent=node)
     root.prepare_to_store(storage)
@@ -125,17 +129,17 @@ def test_binary_node_ref_prepare_to_store_no_referent_is_safe():
     BinaryNodeRef().prepare_to_store(Storage(io.BytesIO()))
 
 
-def test_binary_node_ref_referent_to_bytes_pickles_address_dict():
-    """Pickled payload is a dict with left, key, value, right, length (addresses only for refs)."""
+def test_binary_node_ref_referent_to_bytes_packs_address_dict():
+    """Packed payload is a dict with left, key, value, right, length (addresses only for refs)."""
     left = BinaryNodeRef(address=11)
     right = BinaryNodeRef(address=22)
     value = ValueRef(address=33)
     node = BinaryNode(
-        left_ref=left, key="k", value_ref=value, right_ref=right, length=7
+        left_ref=left, key="k", value_ref=value, right_ref=right, length=7, height=0
     )
     raw = BinaryNodeRef.referent_to_bytes(node)
     d = msgpack.unpackb(raw, raw=False)
-    assert set(d) == {"left", "key", "value", "right", "length"}
+    assert set(d) == {"left", "key", "value", "right", "length", "height"}
     assert d["left"] == 11
     assert d["key"] == "k"
     assert d["value"] == 33
@@ -144,7 +148,7 @@ def test_binary_node_ref_referent_to_bytes_pickles_address_dict():
 
 
 def test_binary_node_ref_length_delegates_to_loaded_referent():
-    node = BinaryNode(BinaryNodeRef(), "k", ValueRef("v"), BinaryNodeRef(), 42)
+    node = BinaryNode(BinaryNodeRef(), "k", ValueRef("v"), BinaryNodeRef(), 42, 0)
     ref = BinaryNodeRef(referent=node)
     assert ref.length == 42
 
@@ -159,7 +163,7 @@ def test_binary_node_ref_length_unloaded_with_address_raises():
         BinaryNodeRef(address=4096).length
 
 
-def test_binary_node_ref_bytes_to_referent_inverts_pickled_dict():
+def test_binary_node_ref_bytes_to_referent_inverts_packed_dict():
     raw = BinaryNodeRef.referent_to_bytes(
         BinaryNode(
             BinaryNodeRef(address=5),
@@ -167,6 +171,7 @@ def test_binary_node_ref_bytes_to_referent_inverts_pickled_dict():
             ValueRef(address=6),
             BinaryNodeRef(address=7),
             2,
+            0,
         )
     )
     node = BinaryNodeRef.bytes_to_referent(raw)
@@ -186,6 +191,7 @@ def test_binary_node_ref_roundtrip_store_then_get_matches_chapter_leaf_shape():
         ValueRef("payload"),
         BinaryNodeRef(),
         1,
+        0,
     )
     root = BinaryNodeRef(referent=node)
     root.store(storage)
@@ -200,8 +206,8 @@ def test_binary_node_ref_roundtrip_store_then_get_matches_chapter_leaf_shape():
     assert loaded.right_ref.address == 0
 
 
-def test_binary_node_ref_store_nested_persists_pickled_nodes():
-    """Nested `store` writes inner node bytes first, then outer root; blobs unpickle to address dicts."""
+def test_binary_node_ref_store_nested_persists_packed_nodes():
+    """Nested `store` writes inner node bytes first, then outer root; blobs unpack to address dicts."""
     buf = io.BytesIO()
     storage = Storage(buf)
     inner = BinaryNode(
@@ -210,6 +216,7 @@ def test_binary_node_ref_store_nested_persists_pickled_nodes():
         ValueRef("mid"),
         ValueRef("R"),
         length=1,
+        height=0,
     )
     inner_wrapped = BinaryNodeRef(referent=inner)
     outer = BinaryNode(
@@ -218,12 +225,14 @@ def test_binary_node_ref_store_nested_persists_pickled_nodes():
         ValueRef("rootv"),
         ValueRef(""),
         length=1,
+        height=1,
     )
     root = BinaryNodeRef(referent=outer)
     root.store(storage)
 
     assert root.address != 0
     outer_doc = msgpack.unpackb(storage.read(root.address), raw=False)
+    assert set(outer_doc) == {"left", "key", "value", "right", "length", "height"}
     assert outer_doc["key"] == "root"
     assert outer_doc["length"] == 1
     assert outer_doc["left"] == inner_wrapped.address
@@ -233,6 +242,6 @@ def test_binary_node_ref_store_nested_persists_pickled_nodes():
     assert inner_wrapped.address != 0
     inner_doc = msgpack.unpackb(storage.read(inner_wrapped.address), raw=False)
     assert inner_doc["key"] == "inner"
-    assert set(inner_doc) == {"left", "key", "value", "right", "length"}
+    assert set(inner_doc) == {"left", "key", "value", "right", "length", "height"}
     assert inner_doc["length"] == 1
     assert all(inner_doc[k] != 0 for k in ("left", "value", "right"))

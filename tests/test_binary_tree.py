@@ -86,6 +86,7 @@ def test_binary_tree_get_missing_key_raises_key_error():
         value_ref=ValueRef("v"),
         right_ref=BinaryNodeRef(),
         length=1,
+        height=0,
     )
     with pytest.raises(KeyError):
         tree._get(root, "x")

@@ -98,8 +98,11 @@ class LogicalBase:
         self._tree_ref = self._delete(self._follow(self._tree_ref), key)
 
     def commit(self) -> None:
-        self._tree_ref.store(self._storage)
-        self._storage.commit_root_address(self._tree_ref.address)
+        if self._tree_ref:
+            self._tree_ref.store(self._storage)
+            self._storage.commit_root_address(self._tree_ref.address)
+        else:
+            self._storage.commit_root_address(0)
 
     def _get(self, node: Any, key: str) -> str:
         raise NotImplementedError()
