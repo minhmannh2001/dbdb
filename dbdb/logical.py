@@ -120,3 +120,6 @@ class LogicalBase:
 
     def __iter__(self):
         return iter(self._tree_ref)
+
+    def items(self):
+        return self._tree_ref.items()

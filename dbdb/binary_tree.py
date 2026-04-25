@@ -172,7 +172,17 @@ class BinaryTree(LogicalBase):
             yield node
             yield from self._iter_nodes(self._follow(node.right_ref))
 
+    def _iter_items(self, node: Optional[BinaryNode]):
+        if node:
+            yield from self._iter_items(self._follow(node.left_ref))
+            yield (node.key, self._follow(node.value_ref))
+            yield from self._iter_items(self._follow(node.right_ref))
+
     def __iter__(self):
         root = self._follow(self._tree_ref)
         for node in self._iter_nodes(root):
             yield node.key
+
+    def items(self):
+        root = self._follow(self._tree_ref)
+        yield from self._iter_items(root)

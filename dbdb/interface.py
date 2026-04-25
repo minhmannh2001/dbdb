@@ -1,5 +1,6 @@
 # dbdb/interface.py
 import os
+import random
 import tempfile
 from typing import IO
 
@@ -103,8 +104,8 @@ class DBDB:
 
     def items(self):
         self._assert_not_closed()
-        for key in self:
-            yield (key, self[key])
+        self._reopen_if_replaced()
+        return self._tree.items()
 
     def compact(self) -> None:
         self._assert_not_closed()
@@ -119,7 +120,13 @@ class DBDB:
             # Open a new DB for the temp file and copy data
             new_db = dbdb.connect(temp_path)
             try:
-                for key, value in self.items():
+                # To avoid a skewed tree that would result from inserting
+                # keys in sorted order, we load all items into memory,
+                # shuffle them, and then insert. This is a memory-intensive
+                # trade-off against the recursion limit.
+                items = list(self.items())
+                random.shuffle(items)
+                for key, value in items:
                     new_db[key] = value
                 new_db.commit()
             finally:
