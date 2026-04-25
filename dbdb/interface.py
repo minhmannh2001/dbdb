@@ -4,7 +4,6 @@ import random
 import tempfile
 from typing import IO
 
-import dbdb
 from dbdb.physical import Storage
 from dbdb.binary_tree import BinaryTree
 
@@ -117,8 +116,11 @@ class DBDB:
             with tempfile.NamedTemporaryFile(dir=db_dir, delete=False) as f:
                 temp_path = f.name
 
+            # Local import to break circular dependency
+            from dbdb import connect
+
             # Open a new DB for the temp file and copy data
-            new_db = dbdb.connect(temp_path)
+            new_db = connect(temp_path)
             try:
                 # To avoid a skewed tree that would result from inserting
                 # keys in sorted order, we load all items into memory,

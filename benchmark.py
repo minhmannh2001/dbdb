@@ -201,46 +201,6 @@ if __name__ == "__main__":
         print(f"\nBenchmark complete. Results saved to '{RESULTS_PATH}'")
 
     finally:
-        # Ensure the database file is always cleaned up
         if os.path.exists(DB_PATH):
             os.remove(DB_PATH)
             print(f"Cleaned up '{DB_PATH}'")
-
-        writes_per_sec, reads_per_sec = run_general_performance_test()
-
-        f.write("## General Performance\n\n")
-        f.write(f"*   **Keys:** `{NUM_KEYS_GENERAL}`\n")
-        f.write(f"*   **Key Size:** `{KEY_SIZE}` bytes\n")
-        f.write(f"*   **Value Size:** `{VALUE_SIZE}` bytes\n\n")
-        f.write("| Operation              | Throughput (ops/sec) |\n")
-        f.write("|------------------------|----------------------|\n")
-        f.write(f"| Sequential Writes      | `{writes_per_sec:.2f}`       |\n")
-        f.write(f"| Random Reads           | `{reads_per_sec:.2f}`        |\n\n")
-
-        # Run and record the compaction impact test
-        if os.path.exists(DB_PATH):
-            os.remove(DB_PATH)
-        compaction_results = run_compaction_test()
-
-        f.write("## Compaction Impact\n\n")
-        f.write(f"*   **Unique Keys:** `{NUM_KEYS_COMPACTION}`\n")
-        f.write(f"*   **Overwrites per Key:** `{COMPACTION_OVERWRITES}`\n\n")
-        f.write(
-            "| Metric                   | Before Compaction        | After Compaction         | Improvement              |\n"
-        )
-        f.write(
-            "|--------------------------|--------------------------|--------------------------|--------------------------|\n"
-        )
-        f.write(
-            f"| File Size (bytes)        | `{compaction_results['size_before']}`            | `{compaction_results['size_after']}`             | **`{100 * (1 - compaction_results['size_after'] / compaction_results['size_before']):.2f}%` smaller** |\n"
-        )
-        f.write(
-            f"| Random Read (ops/sec)    | `{compaction_results['reads_before']:.2f}`               | `{compaction_results['reads_after']:.2f}`                | **`{100 * (compaction_results['reads_after'] / compaction_results['reads_before'] - 1):.2f}%` faster**  |\n\n"
-        )
-        f.write(
-            f"**Compaction Time:** `{compaction_results['compaction_time']:.4f}` seconds\n"
-        )
-
-    print(f"\nBenchmark complete. Results saved to '{RESULTS_PATH}'")
-    if os.path.exists(DB_PATH):
-        os.remove(DB_PATH)
