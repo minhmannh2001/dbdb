@@ -126,6 +126,125 @@ class BTree(LogicalBase):
             raise KeyError(key)
         return self._get(self._follow(node.child_refs[-1]), key)
 
+    def _insert(self, node, key, value_ref):
+        """Insert key-value into the tree, returning new root ref."""
+        if node is None:
+            # Empty tree
+            new_node = BTreeNode(
+                keys=[key],
+                value_refs=[value_ref],
+                child_refs=[],
+                length=1,
+                is_leaf=True
+            )
+            return BTreeNodeRef(referent=new_node)
+
+        if self._is_full(node):
+            # Split root: create new root with old root as child
+            new_root = BTreeNode(
+                keys=[],
+                value_refs=[],
+                child_refs=[BTreeNodeRef(referent=node)],
+                length=node.length,
+                is_leaf=False
+            )
+            # Split the child
+            new_root = self._split_child(new_root, 0)
+            # Insert into non-full new root
+            return self._insert_non_full(new_root, key, value_ref)
+        else:
+            return self._insert_non_full(node, key, value_ref)
+
+    def _is_full(self, node):
+        """Check if node has maximum keys."""
+        return len(node.keys) == 2 * self.T - 1
+
+    def _split_child(self, parent, child_index):
+        """Split the child at child_index, promote median to parent."""
+        child = parent.child_refs[child_index].get(self._storage)
+        median_idx = self.T - 1  # T=3, median_idx=2
+
+        if child.is_leaf:
+            # Split leaf
+            left_keys = child.keys[:median_idx]
+            left_value_refs = child.value_refs[:median_idx]
+            left = BTreeNode(left_keys, left_value_refs, [], len(left_keys), True)
+
+            right_keys = child.keys[median_idx + 1:]
+            right_value_refs = child.value_refs[median_idx + 1:]
+            right = BTreeNode(right_keys, right_value_refs, [], len(right_keys), True)
+        else:
+            # Split internal
+            left_keys = child.keys[:median_idx]
+            left_value_refs = child.value_refs[:median_idx]
+            left_child_refs = child.child_refs[:median_idx + 1]
+            left = BTreeNode(left_keys, left_value_refs, left_child_refs,
+                            sum(c.get(self._storage).length for c in left_child_refs) + len(left_keys), False)
+
+            right_keys = child.keys[median_idx + 1:]
+            right_value_refs = child.value_refs[median_idx + 1:]
+            right_child_refs = child.child_refs[median_idx + 1:]
+            right = BTreeNode(right_keys, right_value_refs, right_child_refs,
+                             sum(c.get(self._storage).length for c in right_child_refs) + len(right_keys), False)
+
+        # Median key/value
+        median_key = child.keys[median_idx]
+        median_value_ref = child.value_refs[median_idx]
+
+        # New parent
+        new_keys = parent.keys[:child_index] + [median_key] + parent.keys[child_index:]
+        new_value_refs = parent.value_refs[:child_index] + [median_value_ref] + parent.value_refs[child_index:]
+        new_child_refs = (parent.child_refs[:child_index] +
+                         [BTreeNodeRef(referent=left), BTreeNodeRef(referent=right)] +
+                         parent.child_refs[child_index + 1:])
+        new_parent = BTreeNode(new_keys, new_value_refs, new_child_refs, parent.length, parent.is_leaf)
+
+        return new_parent
+
+    def _insert_non_full(self, node, key, value_ref):
+        """Insert into a node that is guaranteed not full."""
+        if node.is_leaf:
+            # Find insertion point
+            i = 0
+            while i < len(node.keys) and node.keys[i] < key:
+                i += 1
+            if i < len(node.keys) and node.keys[i] == key:
+                # Update existing
+                new_value_refs = node.value_refs[:i] + [value_ref] + node.value_refs[i + 1:]
+                new_node = BTreeNode(node.keys, new_value_refs, node.child_refs, node.length, node.is_leaf)
+            else:
+                # Insert new
+                new_keys = node.keys[:i] + [key] + node.keys[i:]
+                new_value_refs = node.value_refs[:i] + [value_ref] + node.value_refs[i:]
+                new_node = BTreeNode(new_keys, new_value_refs, node.child_refs, node.length + 1, node.is_leaf)
+            return BTreeNodeRef(referent=new_node)
+        else:
+            # Find child index
+            i = 0
+            while i < len(node.keys) and node.keys[i] < key:
+                i += 1
+            child_index = i
+            child = node.child_refs[child_index].get(self._storage)
+
+            if self._is_full(child):
+                # Split child first
+                node = self._split_child(node, child_index)
+                # Re-find child_index in new node
+                i = 0
+                while i < len(node.keys) and node.keys[i] < key:
+                    i += 1
+                child_index = i
+
+            # Now insert into the child
+            child = node.child_refs[child_index].get(self._storage)
+            new_child_ref = self._insert_non_full(child, key, value_ref)
+
+            # Update node with new child
+            new_child_refs = node.child_refs[:child_index] + [new_child_ref] + node.child_refs[child_index + 1:]
+            new_length = node.length + 1
+            new_node = BTreeNode(node.keys, node.value_refs, new_child_refs, new_length, node.is_leaf)
+            return BTreeNodeRef(referent=new_node)
+
     def __iter__(self):
         """In-order key iteration."""
         if not self._storage.locked:
