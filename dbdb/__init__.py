@@ -10,7 +10,7 @@ def connect(dbname: str, tree_type: str = "bst") -> DBDB:
     Connect to a database file.
 
     :param dbname: The path to the database file.
-    :param tree_type: The type of tree to use ("bst" or "avl"). Defaults to "bst".
+    :param tree_type: The type of tree to use ("bst", "avl", or "btree"). Defaults to "bst".
                       If opening an existing file, its stored tree type takes precedence.
     :return: A DBDB object.
     """

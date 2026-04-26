@@ -18,14 +18,19 @@ class DBDB:
         Initializes a new DBDB instance.
 
         :param f: A file-like object for the database storage.
-        :param tree_type: "bst" or "avl". Ignored if the file already contains a tree type.
+        :param tree_type: "bst", "avl", or "btree". Ignored if the file already contains a tree type.
         """
         self._storage = Storage(f)
 
         root_addr = self._storage.get_root_address()
         if root_addr == 0:
             # Empty or new file, we can set the requested type
-            type_flag = 1 if tree_type == "avl" else 0
+            if tree_type == "btree":
+                type_flag = 2
+            elif tree_type == "avl":
+                type_flag = 1
+            else:
+                type_flag = 0
             self._storage.set_tree_type(type_flag)
         else:
             # Existing file with data, read its actual tree type
@@ -39,6 +44,10 @@ class DBDB:
             from dbdb.avl_tree import AVLTree
 
             self._tree = AVLTree(self._storage)
+        elif self._tree_type_flag == 2:
+            from dbdb.btree import BTree
+
+            self._tree = BTree(self._storage)
         else:
             from dbdb.binary_tree import BinaryTree
 

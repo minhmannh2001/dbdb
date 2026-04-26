@@ -8,7 +8,7 @@ Feature: DBDB Public API
     When I create a DBDB instance with the file object
     Then the DBDB instance should be successfully created
     And the instance should have a private Storage object
-    And the instance should have a private BinaryTree object
+    And the instance should have a private tree object
 
   Scenario: Setting and getting a key
     Given a DBDB instance with a temporary file

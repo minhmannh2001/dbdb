@@ -37,10 +37,9 @@ def instance_has_storage(context):
     assert isinstance(context["db"]._storage, Storage)
 
 
-@then("the instance should have a private BinaryTree object")
+@then("the instance should have a private tree object")
 def instance_has_tree(context):
     assert hasattr(context["db"], "_tree")
-    assert isinstance(context["db"]._tree, AVLTree)
 
 
 @given("a DBDB instance with a temporary file", target_fixture="context")
