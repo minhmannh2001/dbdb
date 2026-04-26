@@ -161,7 +161,7 @@ if __name__ == "__main__":
         results_general = {}
         results_compaction = {}
 
-        for tree_type in ["bst", "avl"]:
+        for tree_type in ["bst", "avl", "btree"]:
             if os.path.exists(DB_PATH):
                 os.remove(DB_PATH)
             writes_per_sec, reads_per_sec = run_general_performance_test(tree_type)
@@ -184,35 +184,35 @@ if __name__ == "__main__":
             f.write(f"*   **Key Size:** `{KEY_SIZE}` bytes\n")
             f.write(f"*   **Value Size:** `{VALUE_SIZE}` bytes\n\n")
             f.write(
-                "| Operation              | BST Throughput (ops/sec) | AVL Throughput (ops/sec) |\n"
+                "| Operation              | BST Throughput (ops/sec) | AVL Throughput (ops/sec) | BTree Throughput (ops/sec) |\n"
             )
             f.write(
-                "|------------------------|--------------------------|--------------------------|\n"
+                "|------------------------|--------------------------|--------------------------|----------------------------|\n"
             )
             f.write(
-                f"| Sequential Writes      | `{results_general['bst']['writes']:.2f}`                   | `{results_general['avl']['writes']:.2f}`                   |\n"
+                f"| Sequential Writes      | `{results_general['bst']['writes']:.2f}`                   | `{results_general['avl']['writes']:.2f}`                   | `{results_general['btree']['writes']:.2f}`                     |\n"
             )
             f.write(
-                f"| Random Reads           | `{results_general['bst']['reads']:.2f}`                   | `{results_general['avl']['reads']:.2f}`                   |\n\n"
+                f"| Random Reads           | `{results_general['bst']['reads']:.2f}`                   | `{results_general['avl']['reads']:.2f}`                   | `{results_general['btree']['reads']:.2f}`                     |\n\n"
             )
 
             f.write("## Compaction Impact Comparison\n\n")
             f.write(f"*   **Unique Keys:** `{NUM_KEYS_COMPACTION}`\n")
             f.write(f"*   **Overwrites per Key:** `{COMPACTION_OVERWRITES}`\n\n")
             f.write(
-                "| Metric                   | BST Before | BST After  | AVL Before | AVL After  |\n"
+                "| Metric                   | BST Before | BST After  | AVL Before | AVL After  | BTree Before | BTree After |\n"
             )
             f.write(
-                "|--------------------------|------------|------------|------------|------------|\n"
+                "|--------------------------|------------|------------|------------|------------|--------------|-------------|\n"
             )
             f.write(
-                f"| File Size (bytes)        | `{results_compaction['bst']['size_before']}`   | `{results_compaction['bst']['size_after']}`   | `{results_compaction['avl']['size_before']}`   | `{results_compaction['avl']['size_after']}`   |\n"
+                f"| File Size (bytes)        | `{results_compaction['bst']['size_before']}`   | `{results_compaction['bst']['size_after']}`   | `{results_compaction['avl']['size_before']}`   | `{results_compaction['avl']['size_after']}`   | `{results_compaction['btree']['size_before']}`     | `{results_compaction['btree']['size_after']}`     |\n"
             )
             f.write(
-                f"| Random Read (ops/sec)    | `{results_compaction['bst']['reads_before']:.2f}`    | `{results_compaction['bst']['reads_after']:.2f}`    | `{results_compaction['avl']['reads_before']:.2f}`    | `{results_compaction['avl']['reads_after']:.2f}`    |\n"
+                f"| Random Read (ops/sec)    | `{results_compaction['bst']['reads_before']:.2f}`    | `{results_compaction['bst']['reads_after']:.2f}`    | `{results_compaction['avl']['reads_before']:.2f}`    | `{results_compaction['avl']['reads_after']:.2f}`    | `{results_compaction['btree']['reads_before']:.2f}`      | `{results_compaction['btree']['reads_after']:.2f}`      |\n"
             )
             f.write(
-                f"| Compaction Time (s)      | N/A        | `{results_compaction['bst']['compaction_time']:.4f}`     | N/A        | `{results_compaction['avl']['compaction_time']:.4f}`     |\n\n"
+                f"| Compaction Time (s)      | N/A        | `{results_compaction['bst']['compaction_time']:.4f}`     | N/A        | `{results_compaction['avl']['compaction_time']:.4f}`     | N/A            | `{results_compaction['btree']['compaction_time']:.4f}`        |\n\n"
             )
 
         print(f"\nBenchmark complete. Results saved to '{RESULTS_PATH}'")

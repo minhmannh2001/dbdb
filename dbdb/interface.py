@@ -155,7 +155,12 @@ class DBDB:
             # Local import to break circular dependency
             from dbdb import connect
 
-            tree_type_str = "avl" if self._tree_type_flag == 1 else "bst"
+            if self._tree_type_flag == 2:
+                tree_type_str = "btree"
+            elif self._tree_type_flag == 1:
+                tree_type_str = "avl"
+            else:
+                tree_type_str = "bst"
 
             # Open a new DB for the temp file and copy data
             new_db = connect(temp_path, tree_type=tree_type_str)
