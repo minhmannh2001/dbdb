@@ -3,6 +3,7 @@
 import io
 import os
 import struct
+import threading
 from typing import IO
 
 import portalocker
@@ -15,18 +16,45 @@ class Storage:
     INTEGER_FORMAT = "!Q"
     INTEGER_LENGTH = 8
 
+    # fcntl locks (used by portalocker on Unix) are per-process, not per-thread.
+    # Threads within the same process do not block each other with fcntl alone.
+    # This dict maps a canonical file path to a threading.Lock that serializes
+    # same-process threads before they attempt the OS-level file lock.
+    _thread_locks: dict[str, threading.Lock] = {}
+    _thread_locks_guard = threading.Lock()
+
+    @classmethod
+    def _get_thread_lock(cls, key: str) -> threading.Lock:
+        with cls._thread_locks_guard:
+            if key not in cls._thread_locks:
+                cls._thread_locks[key] = threading.Lock()
+            return cls._thread_locks[key]
+
     def __init__(self, f: IO):
         self._f = f
         self.locked = False
+        try:
+            self._lock_key = os.path.realpath(f.name)
+            self._thread_lock = self._get_thread_lock(self._lock_key)
+        except AttributeError:
+            # BytesIO and other in-memory file-likes have no name.
+            # Use a fresh per-instance lock so that id() reuse across objects
+            # never returns a stale (already-acquired) lock from the class dict.
+            self._lock_key = None
+            self._thread_lock = threading.Lock()
         self._ensure_superblock()
 
     def lock(self) -> bool:
         if not self.locked:
+            self._thread_lock.acquire()
             try:
                 portalocker.lock(self._f, portalocker.LOCK_EX)
             except io.UnsupportedOperation:
                 # In-memory file-likes (e.g. BytesIO) have no fileno; keep self.locked semantics only.
                 pass
+            except Exception:
+                self._thread_lock.release()
+                raise
             self.locked = True
             return True
         return False
@@ -39,6 +67,7 @@ class Storage:
             except io.UnsupportedOperation:
                 pass
             self.locked = False
+            self._thread_lock.release()
 
     def _ensure_superblock(self) -> None:
         self.lock()
@@ -95,14 +124,28 @@ class Storage:
         length = self._read_integer()
         return self._f.read(length)
 
+    def _pread_superblock(self, offset: int, n: int) -> bytes:
+        """Read n bytes at superblock offset, bypassing Python's read-ahead cache.
+
+        BufferedRandom fills a read buffer on the first read and returns cached
+        bytes on subsequent seeks within that range. Writes from other file handles
+        to the same file are invisible through the stale buffer. os.pread() goes
+        directly to the OS page cache, which reflects all flushed writes.
+        Falls back to seek+read for in-memory file-likes (no fileno).
+        """
+        try:
+            return os.pread(self._f.fileno(), n, offset)
+        except (AttributeError, io.UnsupportedOperation, OSError):
+            self._f.seek(offset)
+            return self._f.read(n)
+
     def get_root_address(self) -> int:
-        self._seek_superblock()
-        return self._read_integer()
+        return self._bytes_to_integer(
+            self._pread_superblock(0, self.INTEGER_LENGTH)
+        )
 
     def get_tree_type(self) -> int:
-        self._seek_superblock()
-        self._f.seek(self.INTEGER_LENGTH, os.SEEK_CUR)  # Skip root address
-        data = self._f.read(1)
+        data = self._pread_superblock(self.INTEGER_LENGTH, 1)
         if not data:
             return 0
         return struct.unpack("!B", data)[0]

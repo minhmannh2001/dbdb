@@ -81,22 +81,16 @@ class LogicalBase:
         return ref.get(self._storage)
 
     def get(self, key: str) -> str:
-        if not self._storage.locked:
-            self._refresh_tree_ref()
         if self._tree_ref is None:
             raise KeyError(key)
         return self._get(self._follow(self._tree_ref), key)
 
     def set(self, key: str, value: str) -> None:
-        if self._storage.lock():
-            self._refresh_tree_ref()
         self._tree_ref = self._insert(
             self._follow(self._tree_ref), key, self.value_ref_class(value)
         )
 
     def pop(self, key: str) -> None:
-        if self._storage.lock():
-            self._refresh_tree_ref()
         if self._tree_ref is None:
             raise KeyError(key)
         self._tree_ref = self._delete(self._follow(self._tree_ref), key)
@@ -118,8 +112,6 @@ class LogicalBase:
         raise NotImplementedError()
 
     def __len__(self) -> int:
-        if not self._storage.locked:
-            self._refresh_tree_ref()
         if self._tree_ref is None:
             return 0
         root = self._follow(self._tree_ref)
@@ -131,4 +123,6 @@ class LogicalBase:
         return iter(self._tree_ref)
 
     def items(self):
+        if self._tree_ref is None:
+            return iter([])
         return self._tree_ref.items()

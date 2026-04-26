@@ -127,6 +127,27 @@ class DBDB:
         self._reopen_if_replaced()
         return len(self._tree)
 
+    def update(self, key: str, fn) -> str:
+        """
+        Read the value at key, apply fn to it, write the result atomically.
+        fn receives None if the key does not exist.
+        Returns the new value.
+        """
+        self._assert_not_closed()
+        self._prepare_write()          # acquires LOCK_EX
+        try:
+            try:
+                current = self._tree.get(key)
+            except KeyError:
+                current = None
+            new_value = fn(current)
+            self._tree.set(key, new_value)
+            self._tree.commit()
+            return new_value
+        finally:
+            if self._storage.locked:
+                self._storage.unlock()
+
     def commit(self) -> None:
         self._assert_not_closed()
         self._tree.commit()
