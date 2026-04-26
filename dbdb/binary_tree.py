@@ -36,7 +36,7 @@ class BinaryNode:
             value_ref=kwargs.get("value_ref", node.value_ref),
             right_ref=kwargs.get("right_ref", node.right_ref),
             length=length,
-            height=node.height,  # For now, just copy. Balancing will fix this.
+            height=kwargs.get("height", node.height),
         )
 
     def store_refs(self, storage: Storage) -> None:
