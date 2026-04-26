@@ -5,7 +5,6 @@ import tempfile
 from typing import IO
 
 from dbdb.physical import Storage
-from dbdb.binary_tree import BinaryTree
 
 
 class DBDB:
@@ -14,14 +13,36 @@ class DBDB:
     interface to the underlying key-value store.
     """
 
-    def __init__(self, f: IO):
+    def __init__(self, f: IO, tree_type: str = "bst"):
         """
         Initializes a new DBDB instance.
 
         :param f: A file-like object for the database storage.
+        :param tree_type: "bst" or "avl". Ignored if the file already contains a tree type.
         """
         self._storage = Storage(f)
-        self._tree = BinaryTree(self._storage)
+
+        root_addr = self._storage.get_root_address()
+        if root_addr == 0:
+            # Empty or new file, we can set the requested type
+            type_flag = 1 if tree_type == "avl" else 0
+            self._storage.set_tree_type(type_flag)
+        else:
+            # Existing file with data, read its actual tree type
+            type_flag = self._storage.get_tree_type()
+
+        self._tree_type_flag = type_flag
+        self._init_tree()
+
+    def _init_tree(self) -> None:
+        if self._tree_type_flag == 1:
+            from dbdb.avl_tree import AVLTree
+
+            self._tree = AVLTree(self._storage)
+        else:
+            from dbdb.binary_tree import BinaryTree
+
+            self._tree = BinaryTree(self._storage)
 
     def _assert_not_closed(self) -> None:
         if self._storage.closed:
@@ -29,11 +50,13 @@ class DBDB:
 
     def _reopen_if_replaced(self) -> None:
         """Reopen storage if another process replaced the file (e.g. via compaction)."""
-        if self._storage.is_file_replaced():
-            path = self._storage._f.name
-            self._storage.close()
-            self._storage = Storage(open(path, "r+b"))
-            self._tree = BinaryTree(self._storage)
+        if getattr(self._storage, "is_file_replaced", lambda: False)():
+            if self._storage.is_file_replaced():
+                path = self._storage._f.name
+                self._storage.close()
+                self._storage = Storage(open(path, "r+b"))
+                self._tree_type_flag = self._storage.get_tree_type()
+                self._init_tree()
 
     def _prepare_write(self) -> None:
         """Acquire the write lock, closing the TOCTOU window for write operations.
@@ -54,11 +77,15 @@ class DBDB:
         """
         self._reopen_if_replaced()
         if self._storage.lock():
-            if self._storage.is_file_replaced():
+            if (
+                getattr(self._storage, "is_file_replaced", lambda: False)()
+                and self._storage.is_file_replaced()
+            ):
                 path = self._storage._f.name
                 self._storage.close()
                 self._storage = Storage(open(path, "r+b"))
-                self._tree = BinaryTree(self._storage)
+                self._tree_type_flag = self._storage.get_tree_type()
+                self._init_tree()
             else:
                 self._tree._refresh_tree_ref()
 
@@ -119,8 +146,10 @@ class DBDB:
             # Local import to break circular dependency
             from dbdb import connect
 
+            tree_type_str = "avl" if self._tree_type_flag == 1 else "bst"
+
             # Open a new DB for the temp file and copy data
-            new_db = connect(temp_path)
+            new_db = connect(temp_path, tree_type=tree_type_str)
             try:
                 # To avoid a skewed tree that would result from inserting
                 # keys in sorted order, we load all items into memory,
@@ -145,9 +174,10 @@ class DBDB:
             # Close after rename so the lock covers the rename itself.
             self._storage.close()
 
+            # Re-open the storage for the current instance with the new file
             new_f = open(original_path, "r+b")
             self._storage = Storage(new_f)
-            self._tree = BinaryTree(self._storage)
+            self._init_tree()
 
         except Exception:
             # If anything goes wrong, try to clean up the temp file

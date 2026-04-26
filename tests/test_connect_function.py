@@ -4,7 +4,6 @@ import tempfile
 import pytest
 
 import dbdb
-from dbdb.interface import DBDB
 
 
 @pytest.fixture
@@ -19,15 +18,17 @@ def temp_db_path():
 
 
 class TestConnect:
-    def test_connect_creates_new_file(self, temp_db_path):
+    @pytest.mark.parametrize("tree_type", ["bst", "avl"])
+    def test_connect_creates_new_file(self, temp_db_path, tree_type):
         assert not os.path.exists(temp_db_path)
-        db = dbdb.connect(temp_db_path)
+        db = dbdb.connect(temp_db_path, tree_type=tree_type)
         assert os.path.exists(temp_db_path)
         db.close()
 
-    def test_connect_opens_existing_file(self, temp_db_path):
+    @pytest.mark.parametrize("tree_type", ["bst", "avl"])
+    def test_connect_opens_existing_file(self, temp_db_path, tree_type):
         # Create and populate a DB file first
-        db1 = dbdb.connect(temp_db_path)
+        db1 = dbdb.connect(temp_db_path, tree_type=tree_type)
         db1["a"] = "1"
         db1.commit()
         db1.close()

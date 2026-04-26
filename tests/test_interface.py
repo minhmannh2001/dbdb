@@ -2,24 +2,29 @@
 import io
 import pytest
 
-# This import will fail
 from dbdb.interface import DBDB
 from dbdb.physical import Storage
+from dbdb.avl_tree import AVLTree
 from dbdb.binary_tree import BinaryTree
 
 
 class TestDBDB:
-    def test_init(self):
+    @pytest.mark.parametrize("tree_type", ["bst", "avl"])
+    def test_init(self, tree_type):
         f = io.BytesIO()
-        db = DBDB(f)
+        db = DBDB(f, tree_type=tree_type)
         assert hasattr(db, "_storage")
         assert isinstance(db._storage, Storage)
         assert hasattr(db, "_tree")
-        assert isinstance(db._tree, BinaryTree)
+        if tree_type == "avl":
+            assert isinstance(db._tree, AVLTree)
+        else:
+            assert isinstance(db._tree, BinaryTree)
 
-    def test_set_get_del(self):
+    @pytest.mark.parametrize("tree_type", ["bst", "avl"])
+    def test_set_get_del(self, tree_type):
         f = io.BytesIO()
-        db = DBDB(f)
+        db = DBDB(f, tree_type=tree_type)
 
         # Set and get
         db["a"] = "1"
@@ -30,9 +35,10 @@ class TestDBDB:
         with pytest.raises(KeyError):
             _ = db["a"]
 
-    def test_closed_db_raises_error(self):
+    @pytest.mark.parametrize("tree_type", ["bst", "avl"])
+    def test_closed_db_raises_error(self, tree_type):
         f = io.BytesIO()
-        db = DBDB(f)
+        db = DBDB(f, tree_type=tree_type)
         db.close()
 
         with pytest.raises(ValueError):
@@ -44,9 +50,10 @@ class TestDBDB:
         with pytest.raises(ValueError):
             del db["a"]
 
-    def test_commit(self):
+    @pytest.mark.parametrize("tree_type", ["bst", "avl"])
+    def test_commit(self, tree_type):
         f = io.BytesIO()
-        db = DBDB(f)
+        db = DBDB(f, tree_type=tree_type)
         db["a"] = "1"
         db.commit()
 
@@ -54,10 +61,15 @@ class TestDBDB:
         db2 = DBDB(f)
         assert db2["a"] == "1"
         assert len(db2) == 1
+        if tree_type == "avl":
+            assert isinstance(db2._tree, AVLTree)
+        else:
+            assert isinstance(db2._tree, BinaryTree)
 
-    def test_contains_len(self):
+    @pytest.mark.parametrize("tree_type", ["bst", "avl"])
+    def test_contains_len(self, tree_type):
         f = io.BytesIO()
-        db = DBDB(f)
+        db = DBDB(f, tree_type=tree_type)
 
         # Set two keys
         db["a"] = "1"

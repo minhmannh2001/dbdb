@@ -6,7 +6,7 @@ from pytest_bdd import given, when, then, parsers
 # This import will fail until the class is created
 from dbdb.interface import DBDB
 from dbdb.physical import Storage
-from dbdb.binary_tree import BinaryTree
+from dbdb.avl_tree import AVLTree
 
 
 @pytest.fixture
@@ -21,7 +21,7 @@ def temp_file_object():
 
 @when("I create a DBDB instance with the file object")
 def create_dbdb_instance(temp_file, context):
-    db = DBDB(temp_file)
+    db = DBDB(temp_file, tree_type="avl")
     context["db"] = db
 
 
@@ -40,13 +40,13 @@ def instance_has_storage(context):
 @then("the instance should have a private BinaryTree object")
 def instance_has_tree(context):
     assert hasattr(context["db"], "_tree")
-    assert isinstance(context["db"]._tree, BinaryTree)
+    assert isinstance(context["db"]._tree, AVLTree)
 
 
 @given("a DBDB instance with a temporary file", target_fixture="context")
 def dbdb_instance_with_temp_file():
     f = io.BytesIO()
-    db = DBDB(f)
+    db = DBDB(f, tree_type="avl")
     return {"db": db, "file": f}
 
 

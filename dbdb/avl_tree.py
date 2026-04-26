@@ -173,15 +173,6 @@ class AVLTree(LogicalBase):
             node_updated = BinaryNode.from_node(
                 node_updated, left_ref=node_updated_left_ref
             )
-            # Recalculate height after internal rotation and node update
-            node_updated = BinaryNode.from_node(
-                node_updated,
-                height=max(
-                    self._get_height(self._follow(node_updated.left_ref)),
-                    self._get_height(self._follow(node_updated.right_ref)),
-                )
-                + 1,
-            )
             return self._right_rotate(node_updated)
 
         # Right Left Case
@@ -192,7 +183,146 @@ class AVLTree(LogicalBase):
             node_updated = BinaryNode.from_node(
                 node_updated, right_ref=node_updated_right_ref
             )
-            # Recalculate height after internal rotation and node update
+            return self._left_rotate(node_updated)
+
+        return self.node_ref_class(referent=node_updated)
+
+    def _get(self, node: Optional[BinaryNode], key: str) -> str:
+        while node is not None:
+            if key < node.key:
+                node = self._follow(node.left_ref)
+            elif node.key < key:
+                node = self._follow(node.right_ref)
+            else:
+                return self._follow(node.value_ref)
+        raise KeyError
+
+    def _find_max(self, node: BinaryNode) -> BinaryNode:
+        while True:
+            next_node = self._follow(node.right_ref)
+            if next_node is None:
+                return node
+            node = next_node
+
+    def _iter_nodes(self, node: Optional[BinaryNode]):
+        if node:
+            yield from self._iter_nodes(self._follow(node.left_ref))
+            yield node
+            yield from self._iter_nodes(self._follow(node.right_ref))
+
+    def _iter_items(self, node: Optional[BinaryNode]):
+        if node:
+            yield from self._iter_items(self._follow(node.left_ref))
+            yield (node.key, self._follow(node.value_ref))
+            yield from self._iter_items(self._follow(node.right_ref))
+
+    def __iter__(self):
+        root = self._follow(self._tree_ref)
+        for node in self._iter_nodes(root):
+            yield node.key
+
+    def items(self):
+        root = self._follow(self._tree_ref)
+        yield from self._iter_items(root)
+
+    def _delete(self, node: Optional[BinaryNode], key: str) -> Optional[BinaryNodeRef]:
+        # 1. Perform standard BST deletion (recursive)
+        if node is None:
+            raise KeyError
+        elif key < node.key:
+            node_updated = BinaryNode.from_node(
+                node,
+                left_ref=self._delete(self._follow(node.left_ref), key),
+            )
+        elif node.key < key:
+            node_updated = BinaryNode.from_node(
+                node,
+                right_ref=self._delete(self._follow(node.right_ref), key),
+            )
+        else:
+            # Node to delete is found
+            left = self._follow(node.left_ref)
+            right = self._follow(node.right_ref)
+
+            if left and right:
+                # Node has two children: find in-order successor (min node in right subtree)
+                replacement = self._find_min(right)
+                right_ref_updated = self._delete(
+                    self._follow(node.right_ref), replacement.key
+                )
+                node_updated = BinaryNode.from_node(
+                    node,
+                    key=replacement.key,
+                    value_ref=replacement.value_ref,
+                    right_ref=right_ref_updated,
+                )
+            elif left:
+                # Node has only left child
+                return node.left_ref
+            else:
+                # Node has only right child, or no children
+                return node.right_ref
+
+        # 2. Update height of the current node after deletion
+        node_updated = BinaryNode.from_node(
+            node_updated,
+            height=max(
+                self._get_height(self._follow(node_updated.left_ref)),
+                self._get_height(self._follow(node_updated.right_ref)),
+            )
+            + 1,
+        )
+
+        # 3. Get the balance factor of this node
+        balance = self._get_balance_factor(node_updated)
+
+        # 4. Rebalance the node if it's unbalanced (same logic as insert)
+        # Left Left Case
+        if (
+            balance > 1
+            and self._get_balance_factor(self._follow(node_updated.left_ref)) >= 0
+        ):
+            return self._right_rotate(node_updated)
+
+        # Left Right Case
+        if (
+            balance > 1
+            and self._get_balance_factor(self._follow(node_updated.left_ref)) < 0
+        ):
+            node_updated_left_ref = self._left_rotate(
+                self._follow(node_updated.left_ref)
+            )
+            node_updated = BinaryNode.from_node(
+                node_updated, left_ref=node_updated_left_ref
+            )
+            node_updated = BinaryNode.from_node(
+                node_updated,
+                height=max(
+                    self._get_height(self._follow(node_updated.left_ref)),
+                    self._get_height(self._follow(node_updated.right_ref)),
+                )
+                + 1,
+            )
+            return self._right_rotate(node_updated)
+
+        # Right Right Case
+        if (
+            balance < -1
+            and self._get_balance_factor(self._follow(node_updated.right_ref)) <= 0
+        ):
+            return self._left_rotate(node_updated)
+
+        # Right Left Case
+        if (
+            balance < -1
+            and self._get_balance_factor(self._follow(node_updated.right_ref)) > 0
+        ):
+            node_updated_right_ref = self._right_rotate(
+                self._follow(node_updated.right_ref)
+            )
+            node_updated = BinaryNode.from_node(
+                node_updated, right_ref=node_updated_right_ref
+            )
             node_updated = BinaryNode.from_node(
                 node_updated,
                 height=max(
@@ -204,3 +334,8 @@ class AVLTree(LogicalBase):
             return self._left_rotate(node_updated)
 
         return self.node_ref_class(referent=node_updated)
+
+    def _find_min(self, node: BinaryNode) -> BinaryNode:
+        while node.left_ref.address != 0 or node.left_ref._referent is not None:
+            node = self._follow(node.left_ref)
+        return node

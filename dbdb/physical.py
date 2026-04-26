@@ -99,6 +99,23 @@ class Storage:
         self._seek_superblock()
         return self._read_integer()
 
+    def get_tree_type(self) -> int:
+        self._seek_superblock()
+        self._f.seek(self.INTEGER_LENGTH, os.SEEK_CUR)  # Skip root address
+        data = self._f.read(1)
+        if not data:
+            return 0
+        return struct.unpack("!B", data)[0]
+
+    def set_tree_type(self, tree_type: int) -> None:
+        self.lock()
+        self._seek_superblock()
+        self._f.seek(self.INTEGER_LENGTH, os.SEEK_CUR)  # Skip root address
+        self._f.write(struct.pack("!B", tree_type))
+        self._f.flush()
+        self._fsync_if_possible()
+        self.unlock()
+
     def commit_root_address(self, root_address: int) -> None:
         """Persist root after appended payload is pushed toward the device.
 

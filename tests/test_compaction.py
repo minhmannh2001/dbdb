@@ -7,13 +7,14 @@ import dbdb
 
 
 class TestCompaction:
-    def test_compaction_reduces_size_and_keeps_data(self):
+    @pytest.mark.parametrize("tree_type", ["bst", "avl"])
+    def test_compaction_reduces_size_and_keeps_data(self, tree_type):
         f = tempfile.NamedTemporaryFile(delete=False)
         path = f.name
         f.close()
 
         try:
-            db = dbdb.connect(path)
+            db = dbdb.connect(path, tree_type=tree_type)
             db["a"] = "1" * 1000
             db.commit()
             db["a"] = "2" * 1000  # Overwrite to create garbage
