@@ -6,7 +6,7 @@ import msgpack
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from dbdb.logical import ValueRef
+from dbdb.logical import LogicalBase, ValueRef
 from dbdb.physical import Storage
 
 
@@ -28,6 +28,33 @@ class BTreeNode:
             if len(self.child_refs) != len(self.keys) + 1:
                 raise ValueError(f"Internal node must have len(child_refs) == len(keys) + 1, got {len(self.child_refs)} != {len(self.keys)} + 1")
         # Note: len(keys) constraint not enforced here, as root may have 0 when empty
+
+    def iter_keys(self, storage):
+        """In-order key iterator."""
+        if self.is_leaf:
+            yield from self.keys
+        else:
+            for i in range(len(self.keys)):
+                child = self.child_refs[i].get(storage)
+                yield from child.iter_keys(storage)
+                yield self.keys[i]
+            # Last child
+            child = self.child_refs[-1].get(storage)
+            yield from child.iter_keys(storage)
+
+    def iter_items(self, storage):
+        """In-order (key, value) iterator."""
+        if self.is_leaf:
+            for key, value_ref in zip(self.keys, self.value_refs):
+                yield key, value_ref.get(storage)
+        else:
+            for i in range(len(self.keys)):
+                child = self.child_refs[i].get(storage)
+                yield from child.iter_items(storage)
+                yield self.keys[i], self.value_refs[i].get(storage)
+            # Last child
+            child = self.child_refs[-1].get(storage)
+            yield from child.iter_items(storage)
 
 
 class BTreeNodeRef(ValueRef):
@@ -73,3 +100,46 @@ class BTreeNodeRef(ValueRef):
             length=d["length"],
             is_leaf=d["is_leaf"],
         )
+
+
+class BTree(LogicalBase):
+    """B-tree implementation extending LogicalBase."""
+
+    node_ref_class = BTreeNodeRef
+    value_ref_class = ValueRef
+    T = 3  # minimum degree
+
+    def _get(self, node, key):
+        """Standard B-tree search."""
+        if node is None:
+            raise KeyError(key)
+        # Linear scan for small T
+        for i, k in enumerate(node.keys):
+            if k == key:
+                return self._follow(node.value_refs[i])
+            elif k > key:
+                if node.is_leaf:
+                    raise KeyError(key)
+                return self._get(self._follow(node.child_refs[i]), key)
+        # Key > all keys, go to last child
+        if node.is_leaf:
+            raise KeyError(key)
+        return self._get(self._follow(node.child_refs[-1]), key)
+
+    def __iter__(self):
+        """In-order key iteration."""
+        if not self._storage.locked:
+            self._refresh_tree_ref()
+        root = self._follow(self._tree_ref)
+        if root:
+            return root.iter_keys(self._storage)
+        return iter([])
+
+    def items(self):
+        """In-order (key, value) iteration."""
+        if not self._storage.locked:
+            self._refresh_tree_ref()
+        root = self._follow(self._tree_ref)
+        if root:
+            return root.iter_items(self._storage)
+        return iter([])
