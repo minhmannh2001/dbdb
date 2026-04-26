@@ -113,3 +113,94 @@ class AVLTree(LogicalBase):
             + 1,
         )
         return self.node_ref_class(referent=new_root_updated)
+
+    def _insert(
+        self, node: Optional[BinaryNode], key: str, value_ref: ValueRef
+    ) -> BinaryNodeRef:
+        # 1. Perform standard BST insertion (recursive)
+        if node is None:
+            new_node = BinaryNode(
+                self.node_ref_class(),
+                key,
+                value_ref,
+                self.node_ref_class(),
+                1,
+                0,  # New leaf node has height 0
+            )
+            return self.node_ref_class(referent=new_node)
+
+        if key < node.key:
+            node_updated = BinaryNode.from_node(
+                node,
+                left_ref=self._insert(self._follow(node.left_ref), key, value_ref),
+            )
+        elif node.key < key:
+            node_updated = BinaryNode.from_node(
+                node,
+                right_ref=self._insert(self._follow(node.right_ref), key, value_ref),
+            )
+        else:
+            # Key already exists, update value
+            node_updated = BinaryNode.from_node(node, value_ref=value_ref)
+
+        # 2. Update height of the current node after insertion
+        node_updated = BinaryNode.from_node(
+            node_updated,
+            height=max(
+                self._get_height(self._follow(node_updated.left_ref)),
+                self._get_height(self._follow(node_updated.right_ref)),
+            )
+            + 1,
+        )
+
+        # 3. Get the balance factor of this node
+        balance = self._get_balance_factor(node_updated)
+
+        # 4. Rebalance the node if it's unbalanced
+        # Left Left Case
+        if balance > 1 and key < self._follow(node_updated.left_ref).key:
+            return self._right_rotate(node_updated)
+
+        # Right Right Case
+        if balance < -1 and key > self._follow(node_updated.right_ref).key:
+            return self._left_rotate(node_updated)
+
+        # Left Right Case
+        if balance > 1 and key > self._follow(node_updated.left_ref).key:
+            node_updated_left_ref = self._left_rotate(
+                self._follow(node_updated.left_ref)
+            )
+            node_updated = BinaryNode.from_node(
+                node_updated, left_ref=node_updated_left_ref
+            )
+            # Recalculate height after internal rotation and node update
+            node_updated = BinaryNode.from_node(
+                node_updated,
+                height=max(
+                    self._get_height(self._follow(node_updated.left_ref)),
+                    self._get_height(self._follow(node_updated.right_ref)),
+                )
+                + 1,
+            )
+            return self._right_rotate(node_updated)
+
+        # Right Left Case
+        if balance < -1 and key < self._follow(node_updated.right_ref).key:
+            node_updated_right_ref = self._right_rotate(
+                self._follow(node_updated.right_ref)
+            )
+            node_updated = BinaryNode.from_node(
+                node_updated, right_ref=node_updated_right_ref
+            )
+            # Recalculate height after internal rotation and node update
+            node_updated = BinaryNode.from_node(
+                node_updated,
+                height=max(
+                    self._get_height(self._follow(node_updated.left_ref)),
+                    self._get_height(self._follow(node_updated.right_ref)),
+                )
+                + 1,
+            )
+            return self._left_rotate(node_updated)
+
+        return self.node_ref_class(referent=node_updated)
