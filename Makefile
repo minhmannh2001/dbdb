@@ -15,3 +15,6 @@ install: venv
 
 test:
 	$(PYTEST) -q
+
+benchmark:
+	./.venv/bin/python benchmark.py

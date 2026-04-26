@@ -76,18 +76,20 @@ def run_read_benchmark(db: dbdb.DBDB, keys: list[str]) -> float:
 # --- Test Suites ---
 
 
-def run_general_performance_test() -> tuple[float, float]:
+def run_general_performance_test(tree_type: str) -> tuple[float, float]:
     """
     Runs the general performance test for writes and reads on a fresh database.
 
     Returns:
         A tuple containing (writes_per_sec, reads_per_sec).
     """
-    print(f"Running general performance test with {NUM_KEYS_GENERAL} keys...")
+    print(
+        f"Running general performance test ({tree_type.upper()}) with {NUM_KEYS_GENERAL} keys..."
+    )
     keys = [generate_random_string(KEY_SIZE) for _ in range(NUM_KEYS_GENERAL)]
     values = [generate_random_string(VALUE_SIZE) for _ in range(NUM_KEYS_GENERAL)]
 
-    db = dbdb.connect(DB_PATH)
+    db = dbdb.connect(DB_PATH, tree_type=tree_type)
     try:
         writes_per_sec = run_write_benchmark(db, keys, values)
         reads_per_sec = run_read_benchmark(db, keys)
@@ -97,7 +99,7 @@ def run_general_performance_test() -> tuple[float, float]:
     return writes_per_sec, reads_per_sec
 
 
-def run_compaction_test() -> dict:
+def run_compaction_test(tree_type: str) -> dict:
     """
     Runs a test to measure the impact of compaction on file size and read performance.
 
@@ -105,12 +107,12 @@ def run_compaction_test() -> dict:
         A dictionary containing benchmark results before and after compaction.
     """
     print(
-        f"Running compaction test with {NUM_KEYS_COMPACTION} keys, overwritten {COMPACTION_OVERWRITES} times..."
+        f"Running compaction test ({tree_type.upper()}) with {NUM_KEYS_COMPACTION} keys, overwritten {COMPACTION_OVERWRITES} times..."
     )
     keys = [generate_random_string(KEY_SIZE) for _ in range(NUM_KEYS_COMPACTION)]
 
     # 1. Create a "bloated" database by overwriting keys repeatedly
-    db = dbdb.connect(DB_PATH)
+    db = dbdb.connect(DB_PATH, tree_type=tree_type)
     try:
         for i in range(COMPACTION_OVERWRITES):
             print(f"  Overwriting keys: pass {i + 1}/{COMPACTION_OVERWRITES}...")
@@ -156,51 +158,67 @@ if __name__ == "__main__":
             timestamp = time.strftime("%Y%m%d-%H%M%S")
             os.rename(RESULTS_PATH, f"BENCHMARK-RESULTS_{timestamp}.md")
 
+        results_general = {}
+        results_compaction = {}
+
+        for tree_type in ["bst", "avl"]:
+            if os.path.exists(DB_PATH):
+                os.remove(DB_PATH)
+            writes_per_sec, reads_per_sec = run_general_performance_test(tree_type)
+            results_general[tree_type] = {
+                "writes": writes_per_sec,
+                "reads": reads_per_sec,
+            }
+
+            if os.path.exists(DB_PATH):
+                os.remove(DB_PATH)
+            compaction_results = run_compaction_test(tree_type)
+            results_compaction[tree_type] = compaction_results
+
         with open(RESULTS_PATH, "w") as f:
             f.write("# DBDB Performance Benchmark Results\n\n")
             f.write(f"Timestamp: `{time.strftime('%Y-%m-%d %H:%M:%S')}`\n\n")
 
-            # Run and record the general performance test
-            if os.path.exists(DB_PATH):
-                os.remove(DB_PATH)
-            writes_per_sec, reads_per_sec = run_general_performance_test()
-
-            f.write("## General Performance\n\n")
+            f.write("## General Performance Comparison\n\n")
             f.write(f"*   **Keys:** `{NUM_KEYS_GENERAL}`\n")
             f.write(f"*   **Key Size:** `{KEY_SIZE}` bytes\n")
             f.write(f"*   **Value Size:** `{VALUE_SIZE}` bytes\n\n")
-            f.write("| Operation              | Throughput (ops/sec) |\n")
-            f.write("|------------------------|----------------------|\n")
-            f.write(f"| Sequential Writes      | `{writes_per_sec:.2f}`       |\n")
-            f.write(f"| Random Reads           | `{reads_per_sec:.2f}`        |\n\n")
+            f.write(
+                "| Operation              | BST Throughput (ops/sec) | AVL Throughput (ops/sec) |\n"
+            )
+            f.write(
+                "|------------------------|--------------------------|--------------------------|\n"
+            )
+            f.write(
+                f"| Sequential Writes      | `{results_general['bst']['writes']:.2f}`                   | `{results_general['avl']['writes']:.2f}`                   |\n"
+            )
+            f.write(
+                f"| Random Reads           | `{results_general['bst']['reads']:.2f}`                   | `{results_general['avl']['reads']:.2f}`                   |\n\n"
+            )
 
-            # Run and record the compaction impact test
-            if os.path.exists(DB_PATH):
-                os.remove(DB_PATH)
-            compaction_results = run_compaction_test()
-
-            f.write("## Compaction Impact\n\n")
+            f.write("## Compaction Impact Comparison\n\n")
             f.write(f"*   **Unique Keys:** `{NUM_KEYS_COMPACTION}`\n")
             f.write(f"*   **Overwrites per Key:** `{COMPACTION_OVERWRITES}`\n\n")
             f.write(
-                "| Metric                   | Before Compaction        | After Compaction         | Improvement              |\n"
+                "| Metric                   | BST Before | BST After  | AVL Before | AVL After  |\n"
             )
             f.write(
-                "|--------------------------|--------------------------|--------------------------|--------------------------|\n"
+                "|--------------------------|------------|------------|------------|------------|\n"
             )
             f.write(
-                f"| File Size (bytes)        | `{compaction_results['size_before']}`            | `{compaction_results['size_after']}`             | **`{100 * (1 - compaction_results['size_after'] / compaction_results['size_before']):.2f}%` smaller** |\n"
+                f"| File Size (bytes)        | `{results_compaction['bst']['size_before']}`   | `{results_compaction['bst']['size_after']}`   | `{results_compaction['avl']['size_before']}`   | `{results_compaction['avl']['size_after']}`   |\n"
             )
             f.write(
-                f"| Random Read (ops/sec)    | `{compaction_results['reads_before']:.2f}`               | `{compaction_results['reads_after']:.2f}`                | **`{100 * (compaction_results['reads_after'] / compaction_results['reads_before'] - 1):.2f}%` faster**  |\n\n"
+                f"| Random Read (ops/sec)    | `{results_compaction['bst']['reads_before']:.2f}`    | `{results_compaction['bst']['reads_after']:.2f}`    | `{results_compaction['avl']['reads_before']:.2f}`    | `{results_compaction['avl']['reads_after']:.2f}`    |\n"
             )
             f.write(
-                f"**Compaction Time:** `{compaction_results['compaction_time']:.4f}` seconds\n"
+                f"| Compaction Time (s)      | N/A        | `{results_compaction['bst']['compaction_time']:.4f}`     | N/A        | `{results_compaction['avl']['compaction_time']:.4f}`     |\n\n"
             )
 
         print(f"\nBenchmark complete. Results saved to '{RESULTS_PATH}'")
 
     finally:
+        # Ensure the database file is always cleaned up
         if os.path.exists(DB_PATH):
             os.remove(DB_PATH)
             print(f"Cleaned up '{DB_PATH}'")
