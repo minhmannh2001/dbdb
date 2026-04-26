@@ -2,6 +2,9 @@ import threading
 import dbdb
 import pytest
 
+failed_retries = []
+failed_lock = threading.Lock()
+
 def increment_manual(path):
     db = dbdb.connect(path, tree_type="avl")
     try:
@@ -19,6 +22,16 @@ def increment_update(path):
     db = dbdb.connect(path)  # default bst
     try:
         db.update("counter", lambda v: str(int(v or "0") + 1))
+    finally:
+        db.close()
+
+def increment_optimistic(path):
+    db = dbdb.connect(path)  # default bst
+    try:
+        db.update_optimistic("counter", lambda v: str(int(v or "0") + 1))
+    except RuntimeError:
+        with failed_lock:
+            failed_retries.append(True)
     finally:
         db.close()
 
@@ -82,12 +95,67 @@ def test_update_return_value(tmp_path):
     try:
         db["key"] = "10"
         db.commit()
-        
+
         result = db.update("key", lambda v: str(int(v) + 5))
         assert result == "15"
         assert db["key"] == "15"
     finally:
         db.close()
+
+def test_update_optimistic_basic(tmp_path):
+    """Test basic optimistic update."""
+    path = str(tmp_path / "test.db")
+    db = dbdb.connect(path, tree_type="bst")
+    try:
+        db["counter"] = "0"
+        db.commit()
+
+        result = db.update_optimistic("counter", lambda v: str(int(v) + 1))
+        assert result == "1"
+        assert db["counter"] == "1"
+    finally:
+        db.close()
+
+def test_update_optimistic_missing_key(tmp_path):
+    """Test optimistic update when key does not exist."""
+    path = str(tmp_path / "test.db")
+    db = dbdb.connect(path, tree_type="bst")
+    try:
+        result = db.update_optimistic("missing", lambda v: "42" if v is None else str(int(v) + 1))
+        assert result == "42"
+        assert db["missing"] == "42"
+    finally:
+        db.close()
+
+def test_update_optimistic_return_value(tmp_path):
+    """Test that optimistic update returns the new value."""
+    path = str(tmp_path / "test.db")
+    db = dbdb.connect(path, tree_type="bst")
+    try:
+        db["key"] = "10"
+        db.commit()
+
+        result = db.update_optimistic("key", lambda v: str(int(v) + 5))
+        assert result == "15"
+        assert db["key"] == "15"
+    finally:
+        db.close()
+
+def test_update_optimistic_correctness(tmp_path):
+    """Test that optimistic update with conflict detection produces correct final count."""
+    global failed_retries
+    failed_retries = []
+    path = str(tmp_path / "test.db")
+    N = 10
+    threads = [threading.Thread(target=increment_optimistic, args=(path,)) for _ in range(N)]
+    for t in threads: t.start()
+    for t in threads: t.join()
+
+    db = dbdb.connect(path)
+    counter = int(db["counter"] or "0")
+    db.close()
+    # Each thread either commits (increments counter) or exhausts retries (goes into failed_retries)
+    assert counter == N - len(failed_retries)
 
 def test_update_single(tmp_path):
     """Test update on single db instance."""

@@ -148,6 +148,42 @@ class DBDB:
             if self._storage.locked:
                 self._storage.unlock()
 
+    def update_optimistic(self, key: str, fn, max_retries=10) -> str:
+        """
+        Optimistic update: read without locking, detect conflicts at write time by
+        comparing the root address (version) captured before the read vs. the root
+        address seen after acquiring the lock. If they differ, another writer committed
+        in between — retry. fn receives None if the key does not exist.
+        Returns the new value.
+        """
+        self._assert_not_closed()
+        for _ in range(max_retries):
+            # Read phase: snapshot root address as version, no lock held
+            self._reopen_if_replaced()
+            snapshot_root = self._storage.get_root_address()
+            self._tree._tree_ref = self._tree.node_ref_class(address=snapshot_root)
+            try:
+                current = self._tree.get(key)
+            except KeyError:
+                current = None
+            new_value = fn(current)
+
+            # Validate + write phase: acquire lock, re-check version
+            self._storage.lock()
+            try:
+                current_root = self._storage.get_root_address()
+                if current_root != snapshot_root:
+                    # Another writer committed since our snapshot — retry
+                    continue
+                self._tree.set(key, new_value)
+                self._tree.commit()
+                return new_value
+            finally:
+                if self._storage.locked:
+                    self._storage.unlock()
+
+        raise RuntimeError(f"Max retries ({max_retries}) exceeded for optimistic update")
+
     def commit(self) -> None:
         self._assert_not_closed()
         self._tree.commit()
